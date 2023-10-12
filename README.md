@@ -8,17 +8,18 @@ GitHub: <https://github.com/pozsarzs/mm17d-sw>
  ESP8266 Huzzah Breakout microcontroller
 
 **Software**
-
- - architecture:          xtensa
- - operation system:      -
- - version:               v0.1
- - language:              en
- - licence:               EUPL v1.2
- - local user interface:  -
- - remote user interface: RS-232 TTL - serial console
-                          WLAN       - web interface
- - remote data access:    RS-232 TTL - Modbus/RTU
-                          WLAN       - HTTP (CSV, JSON, TXT, XML), Modbus/TCP
+<table>
+  <tr><td>architecture:</td><td>xtensa</td></tr>
+  <tr><td>operation system:</td><td>-</td></tr>
+  <tr><td>version:</td><td>v0.1</td></tr>
+  <tr><td>language:</td><td>en</td></tr>
+  <tr><td>licence:</td><td>EUPL v1.2</td></tr>
+  <tr><td>local user interface:</td><td>-</td></tr>
+  <tr><td>remote user interface:</td><td>RS-232 TTL - serial console</td></tr>
+  <tr><td>&nbsp;</td><td>WLAN - web interface</td></tr>
+   <tr><td>remote data access:</td><td>RS-232 TTL - Modbus/RTU</td></tr>
+  <tr><td>&nbsp;</td><td>WLAN - HTTP (CSV, JSON, TXT, XML), Modbus/TCP</td></tr>
+</table>
 
 **External libraries in package**
 
