@@ -1,0 +1,69 @@
+Operating program for MM17D device
+----------------------------------
+
+1. About software
+~~~~~~~~~~~~~~~~~
+
+  It is an internal software for RH/T measuring device. This device can measure
+internal and external temperature and internal humidity.
+  It has a web interface.The measured data can be queried via WLAN using HTTP in
+four formats (CSV, JSON, TXT and XML) and using Modbus/TCP. Can also be queried
+via RS-232 TTL port using Modbus/RTU protocol.
+
+Requirements:
+  Hardware: ESP8266 Huzzah Breakout microcontroller
+  Software: - Adafruit Unified Sensor library v1.1.4 by Adafruit Industries
+            - DHT sensor library v1.4.4 by Adafruit Industries
+            - Modbus-ESP8266 library v4.1.0 by Andre Sarmento Barbosa,
+              Alexander Emelianov
+            - ESP8266WebServer library v1.0 by Ivan Grokhotkov
+            - ESP8266WiFi library v1.0 by Ivan Grokhotkov
+
+2. Information and data access
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Information pages:
+  http://../          Help page                               text/html
+  http://../summary   Summary page                            text/html
+  http://../log       Log page                                text/html
+
+Data access with HTTP:
+  http://../get/csv   Get all measured values in CSV format   text/plain
+  http://../get/json  Get all measured values in JSON format  text/plain
+  http://../get/txt   Get all measured values in TXT format   text/plain
+  http://../get/xml   Get all measured values in XML format   text/plain
+
+Data access with Modbus:
+  40001               Internal humidity in percent            integer
+  40002               Internal temperature in degree Celsius  integer
+  40003               External temperature in degree Celsius  integer
+  49999               Software version                        two byte
+
+Modbus/RTU connection parameters:
+  port:    RS-232
+  speed:   9600 bps
+  databit: 8
+  parity:  None
+  stopbit: 1
+
+3. How to get installer package?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+a. Visit homepage (see later) to download package:
+
+  architecture  operation system        filename
+  --------------------------------------------------------
+  (all)         (source code)           mm17d-sw-0.1.tar.gz
+
+b. Download from Github
+
+  $ git clone https://github.com/pozsarzs/mm17d-sw.git
+
+4. Contact
+~~~~~~~~~~
+   Homepage:             <http://www.pozsarzs.hu>
+   Author:               Pozsar Zsolt
+   E-mail:               <pozsarzs@gmail.com>
+   Phone:                +36 56/470-272
+   Mobile:               +36 30/249-5030
+
+--------------------------------------------------------------------------------
+ MM17D * Copyright (C) 2023 Pozsar Zsolt <pozsarzs@gmail.com>
