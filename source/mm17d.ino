@@ -305,7 +305,6 @@ void setup(void)
       "    <hr>\n"
       "    <h3>Measured values</h3>\n"
       "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
-      "      <tr><td colspan=\"3\" align=\"center\"><b>Help pages</b></td></tr>\n"
       "      <tr>\n"
       "        <td>Internal humidity</td>\n"
       "        <td>" + String(values[0]) + " %</td>\n"
