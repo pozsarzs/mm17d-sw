@@ -4,7 +4,6 @@ Homepage: <http://www.pozsarzs.hu>
 GitHub: <https://github.com/pozsarzs/mm17d-sw>
 
 #### Hardware
-
 ESP8266 Huzzah Breakout microcontroller
 
 #### Software
@@ -21,8 +20,7 @@ ESP8266 Huzzah Breakout microcontroller
 |remote data access    |RS-232 TTL: Modbus/RTU                       |
 |                      |WLAN: HTTP (CSV, JSON, TXT, XML), Modbus/TCP |
 
-#### External libraries in package
-
+#### External libraries in the package
  - [Adafruit Unified Sensor](https://github.com/adafruit/Adafruit_Sensor) library v1.1.4 by Adafruit Industries
  - [DHT sensor](https://github.com/adafruit/DHT-sensor-library) library v1.4.4 by Adafruit Industries
  - [Modbus-ESP8266](https://github.com/emelianov/modbus-esp8266) library v4.1.0 by Andre Sarmento Barbosa, Alexander Emelianov
