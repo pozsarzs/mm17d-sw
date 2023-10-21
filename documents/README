@@ -33,10 +33,13 @@ Data access with HTTP:
   http://../get/xml   Get all measured values in XML format   text/plain
 
 Data access with Modbus:
-  40001               Internal humidity in percent            integer
-  40002               Internal temperature in degree Celsius  integer
-  40003               External temperature in degree Celsius  integer
-  49999               Software version                        two byte
+  10001               Status of the green LED                 bit
+  10002               Status of the yellow LED                bit
+  10003               Status of the red LED                   bit
+  30001               Internal humidity in percent            integer
+  30002               Internal temperature in degree Celsius  integer
+  30003               External temperature in degree Celsius  integer
+  39999               Software version                        two byte
 
 Modbus/RTU connection parameters:
   port:    RS-232

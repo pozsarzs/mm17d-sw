@@ -23,7 +23,7 @@
 // #define       PT100_SIMULATION
 
 #ifdef PT100_SIMULATION
-const float   TPT[3]            = { -30, 0, 50}; // T in degree Celsius
+const float   TPT[3]            = {-30, 0, 50}; // T in degree Celsius
 const float   RPT[3]            = {88.22, 100, 119.4}; // R in ohm
 int count;
 #endif
@@ -51,6 +51,7 @@ const String  TEXTPLAIN         = "text/plain";
 // general variables
 int           syslog[64]        = {};
 int           values[3]         = {};
+boolean       leds[3]           = {false, false, false};
 String        line;
 String        myipaddress;
 String        mymacaddress;
@@ -105,6 +106,90 @@ ESP8266WebServer server(80);
 ModbusIP mbtcp;
 ModbusRTU mbrtu;
 
+// switch on/off blue LED
+void blueled(boolean b)
+{
+  digitalWrite(PRT_LEDBLUE, b);
+}
+
+// switch on/off green LED
+void greenled(boolean b)
+{
+  digitalWrite(PRT_LEDGREEN, b);
+  leds[0] = b;
+  mbtcp.Ists(0, leds[0]);
+  mbrtu.Ists(0, leds[0]);
+}
+
+// switch on/off yellow LED
+void yellowled(boolean b)
+{
+  digitalWrite(PRT_LEDYELLOW, b);
+  leds[1] = b;
+  mbtcp.Ists(1, leds[1]);
+  mbrtu.Ists(1, leds[1]);
+}
+
+// switch on/off red LED
+void redled(boolean b)
+{
+  digitalWrite(PRT_LEDRED, b);
+  leds[2] = b;
+  mbtcp.Ists(2, leds[2]);
+  mbrtu.Ists(2, leds[2]);
+}
+
+// blinking blue LED
+void blinkblueled()
+{
+  blueled(true);
+  delay(25);
+  blueled(false);
+}
+
+// blinking yellow LED
+void blinkyellowled()
+{
+  yellowled(true);
+  delay(25);
+  yellowled(false);
+}
+
+// blinking all LEDs
+void knightrider()
+{
+  blueled(true);
+  delay(75);
+  blueled(false);
+  greenled(true);
+  delay(75);
+  greenled(false);
+  yellowled(true);
+  delay(75);
+  yellowled(false);
+  redled(true);
+  delay(75);
+  redled(false);
+  yellowled(true);
+  delay(75);
+  yellowled(false);
+  greenled(true);
+  delay(75);
+  greenled(false);
+}
+
+// beep sign
+void beep(int num)
+{
+  for (int i = 0; i < num; i++)
+  {
+    tone(PRT_BUZZER, 880);
+    delay (100);
+    noTone(PRT_BUZZER);
+    delay (100);
+  }
+}
+
 // initializing function
 void setup(void)
 {
@@ -138,7 +223,7 @@ void setup(void)
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED)
   {
-    delay(300);
+    knightrider();
     Serial.print(".");
   }
   Serial.println(MSG[8]);
@@ -167,16 +252,18 @@ void setup(void)
   // set Modbus registers
   for (int i = 0; i < 3; i++)
   {
-    mbtcp.addHreg(i, values[i]);
-    mbrtu.addHreg(i, values[i]);
+    mbtcp.addIreg(i, values[i]);
+    mbrtu.addIreg(i, values[i]);
+    mbtcp.addIsts(i, leds[i]);
+    mbrtu.addIsts(i, leds[i]);
   }
-  mbtcp.addHreg(9998, SWMVERSION * 256 + SWSVERSION);
-  mbrtu.addHreg(9998, SWMVERSION * 256 + SWSVERSION);
+  mbtcp.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
+  mbrtu.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
   // set Modbus callback
-  mbtcp.onGetHreg(0, modbustcpquery, 3);
-  mbtcp.onGetHreg(9998, modbustcpquery);
-  mbrtu.onGetHreg(0, modbusrtuquery, 3);
-  mbrtu.onGetHreg(9998, modbusrtuquery);
+  mbtcp.onGetIreg(0, modbustcpquery, 3);
+  mbtcp.onGetIreg(9998, modbustcpquery);
+  mbrtu.onGetIreg(0, modbusrtuquery, 3);
+  mbrtu.onGetIreg(9998, modbusrtuquery);
   // start webserver
   writetosyslog(13);
   Serial.print(MSG[13]);
@@ -184,7 +271,6 @@ void setup(void)
   // help page
   server.on("/", []()
   {
-    httpquery();
     writetosyslog(32);
     line =
       "<html>\n"
@@ -207,7 +293,7 @@ void setup(void)
       "        <td>\n"
       "          <a href=\"http://" + myipaddress + "/\">http://" + myipaddress + "/</a>"
       "        </td>\n"
-      "        <td>Help page</td>\n"
+      "        <td>Help</td>\n"
       "        <td>" + TEXTHTML + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
@@ -255,22 +341,37 @@ void setup(void)
       "      </tr>\n"
       "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n"
       "      <tr>\n"
-      "        <td>40001</td>\n"
+      "        <td>10001</td>\n"
+      "        <td>Status of the green LED</td>\n"
+      "        <td>bit</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>10002</td>\n"
+      "        <td>Status of the yellow LED</td>\n"
+      "        <td>bit</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>10003</td>\n"
+      "        <td>Status of the red LED</td>\n"
+      "        <td>bit</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>30001</td>\n"
       "        <td>Internal humidity in percent</td>\n"
       "        <td>integer</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>40002</td>\n"
+      "        <td>30002</td>\n"
       "        <td>Internal temperature in degree Celsius</td>\n"
       "        <td>integer</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>40003</td>\n"
+      "        <td>30003</td>\n"
       "        <td>External temperature in degree Celsius</td>\n"
       "        <td>integer</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>49999</td>\n"
+      "        <td>39999</td>\n"
       "        <td>Software version</td>\n"
       "        <td>two byte</td>\n"
       "      </tr>\n"
@@ -282,12 +383,12 @@ void setup(void)
       "  </body>\n"
       "</html>\n";
     server.send(200, TEXTHTML, line);
+    httpquery();
     delay(100);
   });
   // summary page
   server.on("/summary", []()
   {
-    httpquery();
     writetosyslog(31);
     line =
       "<html>\n"
@@ -307,15 +408,27 @@ void setup(void)
       "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
       "      <tr>\n"
       "        <td>Internal humidity</td>\n"
-      "        <td>" + String(values[0]) + " %</td>\n"
+      "        <td align=\"right\">" + String(values[0]) + " %</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Internal temperature</td>\n"
-      "        <td>" + String(values[1]) + " &deg;C</td>\n"
+      "        <td align=\"right\">" + String(values[1]) + " &deg;C</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>External temperature</td>\n"
-      "        <td>" + String(values[2]) + " &deg;C</td>\n"
+      "        <td align=\"right\">" + String(values[2]) + " &deg;C</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>Status of the green LED</td>\n"
+      "        <td align=\"center\">" + String(leds[0]) + "</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>Status of the yellow LED</td>\n"
+      "        <td align=\"center\">" + String(leds[1]) + "</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>Status of the red LED</td>\n"
+      "        <td align=\"center\">" + String(leds[2]) + "</td>\n"
       "      </tr>\n"
       "    </table>\n"
       "    <br>\n"
@@ -325,9 +438,9 @@ void setup(void)
       "  </body>\n"
       "</html>\n";
     server.send(200, TEXTHTML, line);
+    httpquery();
     delay(100);
   });
-
   // log page
   server.on("/log", []()
   {
@@ -360,6 +473,8 @@ void setup(void)
            "  </body>\n"
            "</html>\n";
     server.send(200, TEXTHTML, line);
+    httpquery();
+    delay(100);
   });
   // get all measured data in CSV format
   server.on("/get/csv", []()
@@ -369,8 +484,13 @@ void setup(void)
            "\"version\",\"" + swversion + "\"\n"
            "\"rhint\",\"" + String(values[0]) + "\"\n"
            "\"tint\",\"" + String(values[1]) + "\"\n"
-           "\"text\",\"" + String(values[2]) + "\"";
+           "\"text\",\"" + String(values[2]) + "\"\n"
+           "\"green\",\"" + String(leds[0]) + "\"\n"
+           "\"yellow\",\"" + String(leds[1]) + "\"\n"
+           "\"red\",\"" + String(leds[2]) + "\"";
     server.send(200, TEXTPLAIN, line);
+    httpquery();
+    delay(100);
   });
   // get all measured values in JSON format
   server.on("/get/json", []()
@@ -385,9 +505,16 @@ void setup(void)
            "    \"rhint\": \"" + String(values[0]) + "\",\n"
            "    \"tint\": \"" + String(values[1]) + "\",\n"
            "    \"text\": \"" + String(values[2]) + "\"\n"
+           "  },\n"
+           "  {\n"
+           "    \"green\": \"" + String(leds[0]) + "\",\n"
+           "    \"yellow\": \"" + String(leds[1]) + "\",\n"
+           "    \"red\": \"" + String(leds[2]) + "\"\n"
            "  }\n"
            "}";
     server.send(200, TEXTPLAIN, line);
+    httpquery();
+    delay(100);
   });
   // get all measured data in TXT format
   server.on("/get/txt", []()
@@ -397,8 +524,13 @@ void setup(void)
            swversion + "\n" +
            String(values[0]) + "\n" +
            String(values[1]) + "\n" +
-           String(values[2]);
+           String(values[2]) + "\n" +
+           String(leds[0]) + "\n" +
+           String(leds[1]) + "\n" +
+           String(leds[2]);
     server.send(200, TEXTPLAIN, line);
+    httpquery();
+    delay(100);
   });
   // get all measured values in XML format
   server.on("/get/xml", []()
@@ -414,8 +546,15 @@ void setup(void)
            "    <tint>" + String(values[1]) + "</tint>\n"
            "    <text>" + String(values[2]) + "</text>\n"
            "  </value>\n"
+           "  <led>\n"
+           "    <green>" + String(values[0]) + "</green>\n"
+           "    <yellow>" + String(values[1]) + "</yellow>\n"
+           "    <red>" + String(values[2]) + "</red>\n"
+           "  </led>\n"
            "</xml>";
     server.send(200, TEXTPLAIN, line);
+    httpquery();
+    delay(100);
   });
   server.begin();
   Serial.println(MSG[8]);
@@ -440,41 +579,15 @@ void loop(void)
   if (currtime - prevtime >= INTERVAL)
   {
     prevtime = currtime;
-    yellowled(true);
-    delay(25);
     measureerror = measureinttemphum() && measureexttemp();
     greenled(measureerror);
     redled(! measureerror);
-    yellowled(false);
+    blinkyellowled();
   }
   mbtcp.task();
   delay(10);
   mbrtu.task();
   yield();
-}
-
-// switch on/off blue LED
-void blueled(boolean b)
-{
-  digitalWrite(PRT_LEDBLUE, b);
-}
-
-// switch on/off green LED
-void greenled(boolean b)
-{
-  digitalWrite(PRT_LEDGREEN, b);
-}
-
-// switch on/off yellow LED
-void yellowled(boolean b)
-{
-  digitalWrite(PRT_LEDYELLOW, b);
-}
-
-// switch on/off red LED
-void redled(boolean b)
-{
-  digitalWrite(PRT_LEDRED, b);
 }
 
 // measure internal temperature and relative humidity
@@ -492,10 +605,10 @@ int measureinttemphum()
   {
     values[0] = (int)fh;
     values[1] = (int)ft;
-    mbtcp.Hreg(0, values[0]);
-    mbtcp.Hreg(1, values[1]);
-    mbrtu.Hreg(0, values[0]);
-    mbrtu.Hreg(1, values[1]);
+    mbtcp.Ireg(0, values[0]);
+    mbtcp.Ireg(1, values[1]);
+    mbrtu.Ireg(0, values[0]);
+    mbrtu.Ireg(1, values[1]);
     return 1;
   }
 }
@@ -548,8 +661,8 @@ boolean measureexttemp()
 #endif
 
     values[2] = (int)t;
-    mbtcp.Hreg(2, values[2]);
-    mbrtu.Hreg(2, values[2]);
+    mbtcp.Ireg(2, values[2]);
+    mbrtu.Ireg(2, values[2]);
     return true;
   }
 }
@@ -557,18 +670,14 @@ boolean measureexttemp()
 // blink blue LED and write to log
 void httpquery()
 {
-  blueled(true);
-  delay(25);
-  blueled(false);
+  blinkblueled();
   writetosyslog(14);
 }
 
 // blink blue LED and write to log
 uint16_t modbustcpquery(TRegister* reg, uint16_t val)
 {
-  blueled(true);
-  delay(25);
-  blueled(false);
+  blinkblueled();
   writetosyslog(15);
   return val;
 }
@@ -576,23 +685,9 @@ uint16_t modbustcpquery(TRegister* reg, uint16_t val)
 // blink blue LED and write to log
 uint16_t modbusrtuquery(TRegister* reg, uint16_t val)
 {
-  blueled(true);
-  delay(25);
-  blueled(false);
+  blinkblueled();
   writetosyslog(16);
   return val;
-}
-
-// beep sign
-void beep(int num)
-{
-  for (int i = 0; i < num; i++)
-  {
-    tone(PRT_BUZZER, 880);
-    delay (100);
-    noTone(PRT_BUZZER);
-    delay (100);
-  }
 }
 
 // write a line to system log
