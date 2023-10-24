@@ -32,14 +32,14 @@ int count;
 const char   *WIFI_SSID         = "";
 const char   *WIFI_PASSWORD     = "";
 // ports
-const int     PRT_BUZZER        = 14;
-const int     PRT_LEDBLUE       = 2;
-const int     PRT_LEDGREEN      = 0;
-const int     PRT_LEDRED        = 5;
-const int     PRT_LEDYELLOW     = 4;
-const int     PRT_SENSOR1       = 12;
-const int     PRT_SENSOR2       = 0;
-// general constants
+const int     PRT_DO_BUZZER     = 14;
+const int     PRT_DO_LEDBLUE    = 2;
+const int     PRT_DO_LEDGREEN   = 0;
+const int     PRT_DO_LEDRED     = 5;
+const int     PRT_DO_LEDYELLOW  = 4;
+const int     PRT_DI_SENSOR1    = 12;
+const int     PRT_AI_SENSOR2    = 0;
+// other constants
 const byte    SWMVERSION        = 0;
 const byte    SWSVERSION        = 1;
 const int     MAXADCVALUE       = 1024;
@@ -48,10 +48,11 @@ const int     MB_UID            = 1;
 const long    INTERVAL          = 10000;
 const String  TEXTHTML          = "text/html";
 const String  TEXTPLAIN         = "text/plain";
-// general variables
+// variable of the ports
+boolean       do_leds[3]        = {false, false, false};
+// other variables
 int           syslog[64]        = {};
 int           values[3]         = {};
-boolean       leds[3]           = {false, false, false};
 String        line;
 String        myipaddress;
 String        mymacaddress;
@@ -81,7 +82,7 @@ const String MSG[39]            =
   /* 18 */  "* E02: Failed to read PT100!",
   /* 19 */  "* E03: Error 404: page not found!",
   /* 20 */  "* E04:",
-  /* 21 */  "* Attention! the serial console is off!",
+  /* 21 */  "* Attention! The serial console is off!",
   /* 22 */  "  internal humidity:\t",
   /* 23 */  "  internal temperature:\t",
   /* 24 */  "  external temperature:\t",
@@ -101,7 +102,7 @@ const String MSG[39]            =
   /* 38 */  "  serial port parameters: "
 };
 
-DHT dht(PRT_SENSOR1, TYP_SENSOR1, 11);
+DHT dht(PRT_DI_SENSOR1, TYP_SENSOR1, 11);
 ESP8266WebServer server(80);
 ModbusIP mbtcp;
 ModbusRTU mbrtu;
@@ -109,34 +110,34 @@ ModbusRTU mbrtu;
 // switch on/off blue LED
 void blueled(boolean b)
 {
-  digitalWrite(PRT_LEDBLUE, b);
+  digitalWrite(PRT_DO_LEDBLUE, b);
 }
 
 // switch on/off green LED
 void greenled(boolean b)
 {
-  digitalWrite(PRT_LEDGREEN, b);
-  leds[0] = b;
-  mbtcp.Ists(0, leds[0]);
-  mbrtu.Ists(0, leds[0]);
+  digitalWrite(PRT_DO_LEDGREEN, b);
+  do_leds[0] = b;
+  mbtcp.Ists(0, do_leds[0]);
+  mbrtu.Ists(0, do_leds[0]);
 }
 
 // switch on/off yellow LED
 void yellowled(boolean b)
 {
-  digitalWrite(PRT_LEDYELLOW, b);
-  leds[1] = b;
-  mbtcp.Ists(1, leds[1]);
-  mbrtu.Ists(1, leds[1]);
+  digitalWrite(PRT_DO_LEDYELLOW, b);
+  do_leds[1] = b;
+  mbtcp.Ists(1, do_leds[1]);
+  mbrtu.Ists(1, do_leds[1]);
 }
 
 // switch on/off red LED
 void redled(boolean b)
 {
-  digitalWrite(PRT_LEDRED, b);
-  leds[2] = b;
-  mbtcp.Ists(2, leds[2]);
-  mbrtu.Ists(2, leds[2]);
+  digitalWrite(PRT_DO_LEDRED, b);
+  do_leds[2] = b;
+  mbtcp.Ists(2, do_leds[2]);
+  mbrtu.Ists(2, do_leds[2]);
 }
 
 // blinking blue LED
@@ -183,9 +184,9 @@ void beep(int num)
 {
   for (int i = 0; i < num; i++)
   {
-    tone(PRT_BUZZER, 880);
+    tone(PRT_DO_BUZZER, 880);
     delay (100);
-    noTone(PRT_BUZZER);
+    noTone(PRT_DO_BUZZER);
     delay (100);
   }
 }
@@ -204,15 +205,15 @@ void setup(void)
   // initialize GPIO ports
   writetosyslog(5);
   Serial.println(MSG[5]);
-  pinMode(PRT_BUZZER, OUTPUT);
-  pinMode(PRT_LEDBLUE, OUTPUT);
-  pinMode(PRT_LEDGREEN, OUTPUT);
-  pinMode(PRT_LEDRED, OUTPUT);
-  pinMode(PRT_LEDYELLOW, OUTPUT);
-  digitalWrite(PRT_LEDBLUE, LOW);
-  digitalWrite(PRT_LEDGREEN, LOW);
-  digitalWrite(PRT_LEDRED, LOW);
-  digitalWrite(PRT_LEDYELLOW, LOW);
+  pinMode(PRT_DO_BUZZER, OUTPUT);
+  pinMode(PRT_DO_LEDBLUE, OUTPUT);
+  pinMode(PRT_DO_LEDGREEN, OUTPUT);
+  pinMode(PRT_DO_LEDRED, OUTPUT);
+  pinMode(PRT_DO_LEDYELLOW, OUTPUT);
+  digitalWrite(PRT_DO_LEDBLUE, LOW);
+  digitalWrite(PRT_DO_LEDGREEN, LOW);
+  digitalWrite(PRT_DO_LEDRED, LOW);
+  digitalWrite(PRT_DO_LEDYELLOW, LOW);
   // initialize sensors
   writetosyslog(6);
   Serial.println(MSG[6]);
@@ -254,8 +255,8 @@ void setup(void)
   {
     mbtcp.addIreg(i, values[i]);
     mbrtu.addIreg(i, values[i]);
-    mbtcp.addIsts(i, leds[i]);
-    mbrtu.addIsts(i, leds[i]);
+    mbtcp.addIsts(i, do_leds[i]);
+    mbrtu.addIsts(i, do_leds[i]);
   }
   mbtcp.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
   mbrtu.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
@@ -420,15 +421,15 @@ void setup(void)
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Status of the green LED</td>\n"
-      "        <td align=\"center\">" + String(leds[0]) + "</td>\n"
+      "        <td align=\"center\">" + String(do_leds[0]) + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Status of the yellow LED</td>\n"
-      "        <td align=\"center\">" + String(leds[1]) + "</td>\n"
+      "        <td align=\"center\">" + String(do_leds[1]) + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Status of the red LED</td>\n"
-      "        <td align=\"center\">" + String(leds[2]) + "</td>\n"
+      "        <td align=\"center\">" + String(do_leds[2]) + "</td>\n"
       "      </tr>\n"
       "    </table>\n"
       "    <br>\n"
@@ -485,9 +486,9 @@ void setup(void)
            "\"rhint\",\"" + String(values[0]) + "\"\n"
            "\"tint\",\"" + String(values[1]) + "\"\n"
            "\"text\",\"" + String(values[2]) + "\"\n"
-           "\"green\",\"" + String(leds[0]) + "\"\n"
-           "\"yellow\",\"" + String(leds[1]) + "\"\n"
-           "\"red\",\"" + String(leds[2]) + "\"";
+           "\"green\",\"" + String(do_leds[0]) + "\"\n"
+           "\"yellow\",\"" + String(do_leds[1]) + "\"\n"
+           "\"red\",\"" + String(do_leds[2]) + "\"";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -507,9 +508,9 @@ void setup(void)
            "    \"text\": \"" + String(values[2]) + "\"\n"
            "  },\n"
            "  {\n"
-           "    \"green\": \"" + String(leds[0]) + "\",\n"
-           "    \"yellow\": \"" + String(leds[1]) + "\",\n"
-           "    \"red\": \"" + String(leds[2]) + "\"\n"
+           "    \"green\": \"" + String(do_leds[0]) + "\",\n"
+           "    \"yellow\": \"" + String(do_leds[1]) + "\",\n"
+           "    \"red\": \"" + String(do_leds[2]) + "\"\n"
            "  }\n"
            "}";
     server.send(200, TEXTPLAIN, line);
@@ -525,9 +526,9 @@ void setup(void)
            String(values[0]) + "\n" +
            String(values[1]) + "\n" +
            String(values[2]) + "\n" +
-           String(leds[0]) + "\n" +
-           String(leds[1]) + "\n" +
-           String(leds[2]);
+           String(do_leds[0]) + "\n" +
+           String(do_leds[1]) + "\n" +
+           String(do_leds[2]);
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -547,9 +548,9 @@ void setup(void)
            "    <text>" + String(values[2]) + "</text>\n"
            "  </value>\n"
            "  <led>\n"
-           "    <green>" + String(values[0]) + "</green>\n"
-           "    <yellow>" + String(values[1]) + "</yellow>\n"
-           "    <red>" + String(values[2]) + "</red>\n"
+           "    <green>" + String(do_leds[0]) + "</green>\n"
+           "    <yellow>" + String(do_leds[1]) + "</yellow>\n"
+           "    <red>" + String(do_leds[2]) + "</red>\n"
            "  </led>\n"
            "</xml>";
     server.send(200, TEXTPLAIN, line);
@@ -630,7 +631,7 @@ boolean measureexttemp()
   const float R1 = 560; // ohm
   const float U0 = 5000; // mV
 
-  u1 = analogRead(PRT_SENSOR2);
+  u1 = analogRead(PRT_AI_SENSOR2);
 
 #ifdef PT100_SIMULATION
   u1 = U0 * (RPT[count] / (R1 + RPT[count]));
