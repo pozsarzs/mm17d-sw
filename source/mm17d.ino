@@ -23,7 +23,7 @@
 // #define       PT100_SIMULATION
 
 #ifdef PT100_SIMULATION
-const float   TPT[3]            = {-30, 0, 50}; // T in degree Celsius
+const float   TPT[3]            = {-30, 0, 50};        // T in degree Celsius
 const float   RPT[3]            = {88.22, 100, 119.4}; // R in ohm
 int count;
 #endif
@@ -48,11 +48,15 @@ const int     MB_UID            = 1;
 const long    INTERVAL          = 10000;
 const String  TEXTHTML          = "text/html";
 const String  TEXTPLAIN         = "text/plain";
-// variable of the ports
-boolean       do_leds[3]        = {false, false, false};
+// output data
+boolean       b_values[3]       = {false,              // do_ledgreen
+                                   false,              // do_ledyellow
+                                   false};             // do_ledred
+int           i_values[3]       = {0,                  // RHint
+                                   0,                  // Tint
+                                   0};                 // Text
 // other variables
 int           syslog[64]        = {};
-int           values[3]         = {};
 String        line;
 String        myipaddress;
 String        mymacaddress;
@@ -117,27 +121,27 @@ void blueled(boolean b)
 void greenled(boolean b)
 {
   digitalWrite(PRT_DO_LEDGREEN, b);
-  do_leds[0] = b;
-  mbtcp.Ists(0, do_leds[0]);
-  mbrtu.Ists(0, do_leds[0]);
+  b_values[0] = b;
+  mbtcp.Ists(0, b_values[0]);
+  mbrtu.Ists(0, b_values[0]);
 }
 
 // switch on/off yellow LED
 void yellowled(boolean b)
 {
   digitalWrite(PRT_DO_LEDYELLOW, b);
-  do_leds[1] = b;
-  mbtcp.Ists(1, do_leds[1]);
-  mbrtu.Ists(1, do_leds[1]);
+  b_values[1] = b;
+  mbtcp.Ists(1, b_values[1]);
+  mbrtu.Ists(1, b_values[1]);
 }
 
 // switch on/off red LED
 void redled(boolean b)
 {
   digitalWrite(PRT_DO_LEDRED, b);
-  do_leds[2] = b;
-  mbtcp.Ists(2, do_leds[2]);
-  mbrtu.Ists(2, do_leds[2]);
+  b_values[2] = b;
+  mbtcp.Ists(2, b_values[2]);
+  mbrtu.Ists(2, b_values[2]);
 }
 
 // blinking blue LED
@@ -253,10 +257,10 @@ void setup(void)
   // set Modbus registers
   for (int i = 0; i < 3; i++)
   {
-    mbtcp.addIreg(i, values[i]);
-    mbrtu.addIreg(i, values[i]);
-    mbtcp.addIsts(i, do_leds[i]);
-    mbrtu.addIsts(i, do_leds[i]);
+    mbtcp.addIreg(i, i_values[i]);
+    mbrtu.addIreg(i, i_values[i]);
+    mbtcp.addIsts(i, b_values[i]);
+    mbrtu.addIsts(i, b_values[i]);
   }
   mbtcp.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
   mbrtu.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
@@ -409,27 +413,27 @@ void setup(void)
       "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
       "      <tr>\n"
       "        <td>Internal humidity</td>\n"
-      "        <td align=\"right\">" + String(values[0]) + " %</td>\n"
+      "        <td align=\"right\">" + String(i_values[0]) + " %</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Internal temperature</td>\n"
-      "        <td align=\"right\">" + String(values[1]) + " &deg;C</td>\n"
+      "        <td align=\"right\">" + String(i_values[1]) + " &deg;C</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>External temperature</td>\n"
-      "        <td align=\"right\">" + String(values[2]) + " &deg;C</td>\n"
+      "        <td align=\"right\">" + String(i_values[2]) + " &deg;C</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Status of the green LED</td>\n"
-      "        <td align=\"center\">" + String(do_leds[0]) + "</td>\n"
+      "        <td align=\"center\">" + String(b_values[0]) + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Status of the yellow LED</td>\n"
-      "        <td align=\"center\">" + String(do_leds[1]) + "</td>\n"
+      "        <td align=\"center\">" + String(b_values[1]) + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
       "        <td>Status of the red LED</td>\n"
-      "        <td align=\"center\">" + String(do_leds[2]) + "</td>\n"
+      "        <td align=\"center\">" + String(b_values[2]) + "</td>\n"
       "      </tr>\n"
       "    </table>\n"
       "    <br>\n"
@@ -483,12 +487,12 @@ void setup(void)
     writetosyslog(34);
     line = "\"name\",\"" + MSG[4] + "\"\n"
            "\"version\",\"" + swversion + "\"\n"
-           "\"rhint\",\"" + String(values[0]) + "\"\n"
-           "\"tint\",\"" + String(values[1]) + "\"\n"
-           "\"text\",\"" + String(values[2]) + "\"\n"
-           "\"green\",\"" + String(do_leds[0]) + "\"\n"
-           "\"yellow\",\"" + String(do_leds[1]) + "\"\n"
-           "\"red\",\"" + String(do_leds[2]) + "\"";
+           "\"rhint\",\"" + String(i_values[0]) + "\"\n"
+           "\"tint\",\"" + String(i_values[1]) + "\"\n"
+           "\"text\",\"" + String(i_values[2]) + "\"\n"
+           "\"green\",\"" + String(b_values[0]) + "\"\n"
+           "\"yellow\",\"" + String(b_values[1]) + "\"\n"
+           "\"red\",\"" + String(b_values[2]) + "\"";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -503,14 +507,14 @@ void setup(void)
            "    \"version\": \"" + swversion + "\"\n"
            "  },\n"
            "  {\n"
-           "    \"rhint\": \"" + String(values[0]) + "\",\n"
-           "    \"tint\": \"" + String(values[1]) + "\",\n"
-           "    \"text\": \"" + String(values[2]) + "\"\n"
+           "    \"rhint\": \"" + String(i_values[0]) + "\",\n"
+           "    \"tint\": \"" + String(i_values[1]) + "\",\n"
+           "    \"text\": \"" + String(i_values[2]) + "\"\n"
            "  },\n"
            "  {\n"
-           "    \"green\": \"" + String(do_leds[0]) + "\",\n"
-           "    \"yellow\": \"" + String(do_leds[1]) + "\",\n"
-           "    \"red\": \"" + String(do_leds[2]) + "\"\n"
+           "    \"green\": \"" + String(b_values[0]) + "\",\n"
+           "    \"yellow\": \"" + String(b_values[1]) + "\",\n"
+           "    \"red\": \"" + String(b_values[2]) + "\"\n"
            "  }\n"
            "}";
     server.send(200, TEXTPLAIN, line);
@@ -523,12 +527,12 @@ void setup(void)
     writetosyslog(34);
     line = MSG[4] + "\n" +
            swversion + "\n" +
-           String(values[0]) + "\n" +
-           String(values[1]) + "\n" +
-           String(values[2]) + "\n" +
-           String(do_leds[0]) + "\n" +
-           String(do_leds[1]) + "\n" +
-           String(do_leds[2]);
+           String(i_values[0]) + "\n" +
+           String(i_values[1]) + "\n" +
+           String(i_values[2]) + "\n" +
+           String(b_values[0]) + "\n" +
+           String(b_values[1]) + "\n" +
+           String(b_values[2]);
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -543,14 +547,14 @@ void setup(void)
            "    <version>" + swversion + "</version>\n"
            "  </software>\n"
            "  <value>\n"
-           "    <rhint>" + String(values[0]) + "</rhint>\n"
-           "    <tint>" + String(values[1]) + "</tint>\n"
-           "    <text>" + String(values[2]) + "</text>\n"
+           "    <rhint>" + String(i_values[0]) + "</rhint>\n"
+           "    <tint>" + String(i_values[1]) + "</tint>\n"
+           "    <text>" + String(i_values[2]) + "</text>\n"
            "  </value>\n"
            "  <led>\n"
-           "    <green>" + String(do_leds[0]) + "</green>\n"
-           "    <yellow>" + String(do_leds[1]) + "</yellow>\n"
-           "    <red>" + String(do_leds[2]) + "</red>\n"
+           "    <green>" + String(b_values[0]) + "</green>\n"
+           "    <yellow>" + String(b_values[1]) + "</yellow>\n"
+           "    <red>" + String(b_values[2]) + "</red>\n"
            "  </led>\n"
            "</xml>";
     server.send(200, TEXTPLAIN, line);
@@ -604,12 +608,12 @@ int measureinttemphum()
     return 0;
   } else
   {
-    values[0] = (int)fh;
-    values[1] = (int)ft;
-    mbtcp.Ireg(0, values[0]);
-    mbtcp.Ireg(1, values[1]);
-    mbrtu.Ireg(0, values[0]);
-    mbrtu.Ireg(1, values[1]);
+    i_values[0] = (int)fh;
+    i_values[1] = (int)ft;
+    mbtcp.Ireg(0, i_values[0]);
+    mbtcp.Ireg(1, i_values[1]);
+    mbrtu.Ireg(0, i_values[0]);
+    mbrtu.Ireg(1, i_values[1]);
     return 1;
   }
 }
@@ -661,9 +665,9 @@ boolean measureexttemp()
     Serial.println("Tcalc:  " + String(int(t)) + " °C\n");
 #endif
 
-    values[2] = (int)t;
-    mbtcp.Ireg(2, values[2]);
-    mbrtu.Ireg(2, values[2]);
+    i_values[2] = (int)t;
+    mbtcp.Ireg(2, i_values[2]);
+    mbrtu.Ireg(2, i_values[2]);
     return true;
   }
 }
