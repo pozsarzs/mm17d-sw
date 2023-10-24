@@ -198,6 +198,15 @@ void beep(int num)
 // initializing function
 void setup(void)
 {
+  const String I_DESC[3]={"internal relative humidity in percent",
+                          "internal temperature in degree Celsius",
+                          "external temperature in degree Celsius"};
+  const String B_DESC[3]={"status of the green LED",
+                          "status of the yellow LED",
+                          "status of the red LED"};
+  const String I_NAME[3]={"rhint","tint","text"};
+  const String B_NAME[3]={"green","yellow","red"};
+
   swversion = String(SWMVERSION) + "." + String(SWSVERSION);
   // set serial port
   Serial.begin(SERIALSPEED);
@@ -255,18 +264,20 @@ void setup(void)
   Serial.println(MSG[37] + String(MB_UID));
   Serial.println(MSG[38] + String(SERIALSPEED) + " bps, 8N1");
   // set Modbus registers
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < 2; i++)
   {
-    mbtcp.addIreg(i, i_values[i]);
-    mbrtu.addIreg(i, i_values[i]);
     mbtcp.addIsts(i, b_values[i]);
     mbrtu.addIsts(i, b_values[i]);
+    mbtcp.addIreg(i, i_values[i]);
+    mbrtu.addIreg(i, i_values[i]);
   }
   mbtcp.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
   mbrtu.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
   // set Modbus callback
+  mbtcp.onGetIsts(0, modbustcpquery, 3);
   mbtcp.onGetIreg(0, modbustcpquery, 3);
   mbtcp.onGetIreg(9998, modbustcpquery);
+  mbrtu.onGetIsts(0, modbustcpquery, 3);
   mbrtu.onGetIreg(0, modbusrtuquery, 3);
   mbrtu.onGetIreg(9998, modbusrtuquery);
   // start webserver
@@ -344,37 +355,26 @@ void setup(void)
       "        <td>Get all measured values in XML format</td>\n"
       "        <td>" + TEXTPLAIN + "</td>\n"
       "      </tr>\n"
-      "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n"
+      "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n";
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
       "      <tr>\n"
-      "        <td>10001</td>\n"
-      "        <td>Status of the green LED</td>\n"
+      "        <td>" + String(i+10001) +"</td>\n"
+      "        <td>" + B_DESC[i] + "</td>\n"
       "        <td>bit</td>\n"
-      "      </tr>\n"
+      "      </tr>\n";
+    }
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
       "      <tr>\n"
-      "        <td>10002</td>\n"
-      "        <td>Status of the yellow LED</td>\n"
-      "        <td>bit</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>10003</td>\n"
-      "        <td>Status of the red LED</td>\n"
-      "        <td>bit</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>30001</td>\n"
-      "        <td>Internal humidity in percent</td>\n"
+      "        <td>" + String(i+30001) +"</td>\n"
+      "        <td>" + I_DESC[i] + "</td>\n"
       "        <td>integer</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>30002</td>\n"
-      "        <td>Internal temperature in degree Celsius</td>\n"
-      "        <td>integer</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>30003</td>\n"
-      "        <td>External temperature in degree Celsius</td>\n"
-      "        <td>integer</td>\n"
-      "      </tr>\n"
+      "      </tr>\n";
+    }
+    line = line +
       "      <tr>\n"
       "        <td>39999</td>\n"
       "        <td>Software version</td>\n"
@@ -410,31 +410,24 @@ void setup(void)
       "    software version: v" + swversion + "<br>\n"
       "    <hr>\n"
       "    <h3>Measured values</h3>\n"
-      "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
+      "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n";
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
       "      <tr>\n"
-      "        <td>Internal humidity</td>\n"
-      "        <td align=\"right\">" + String(i_values[0]) + " %</td>\n"
-      "      </tr>\n"
+      "        <td>" + I_DESC[i] + "</td>\n"
+      "        <td align=\"right\">" + String(i_values[i]) + " %</td>\n"
+      "      </tr>\n";
+    }
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
       "      <tr>\n"
-      "        <td>Internal temperature</td>\n"
-      "        <td align=\"right\">" + String(i_values[1]) + " &deg;C</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>External temperature</td>\n"
-      "        <td align=\"right\">" + String(i_values[2]) + " &deg;C</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>Status of the green LED</td>\n"
-      "        <td align=\"center\">" + String(b_values[0]) + "</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>Status of the yellow LED</td>\n"
-      "        <td align=\"center\">" + String(b_values[1]) + "</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>Status of the red LED</td>\n"
-      "        <td align=\"center\">" + String(b_values[2]) + "</td>\n"
-      "      </tr>\n"
+      "        <td>" + B_DESC[i] + "</td>\n"
+      "        <td align=\"right\">" + String(b_values[i]) + " %</td>\n"
+      "      </tr>\n";
+    }
+    line = line +       
       "    </table>\n"
       "    <br>\n"
       "    <hr>\n"
@@ -486,13 +479,17 @@ void setup(void)
   {
     writetosyslog(34);
     line = "\"name\",\"" + MSG[4] + "\"\n"
-           "\"version\",\"" + swversion + "\"\n"
-           "\"rhint\",\"" + String(i_values[0]) + "\"\n"
-           "\"tint\",\"" + String(i_values[1]) + "\"\n"
-           "\"text\",\"" + String(i_values[2]) + "\"\n"
-           "\"green\",\"" + String(b_values[0]) + "\"\n"
-           "\"yellow\",\"" + String(b_values[1]) + "\"\n"
-           "\"red\",\"" + String(b_values[2]) + "\"";
+           "\"version\",\"" + swversion + "\"\n";
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
+           "\"" + I_NAME[i] + "\",\"" + String(i_values[i]) + "\"\n"
+    }
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
+           "\"" + B_NAME[i] + "\",\"" + String(b_values[i]) + "\"\n"
+    }
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -506,15 +503,21 @@ void setup(void)
            "    \"name\": \"" + MSG[4] + "\",\n"
            "    \"version\": \"" + swversion + "\"\n"
            "  },\n"
-           "  {\n"
-           "    \"rhint\": \"" + String(i_values[0]) + "\",\n"
-           "    \"tint\": \"" + String(i_values[1]) + "\",\n"
-           "    \"text\": \"" + String(i_values[2]) + "\"\n"
+           "  {\n";
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
+           "    \"" + I_NAME[i] + "\": \"" + String(i_values[i]) + "\",\n";
+    }
+    line = line +
            "  },\n"
-           "  {\n"
-           "    \"green\": \"" + String(b_values[0]) + "\",\n"
-           "    \"yellow\": \"" + String(b_values[1]) + "\",\n"
-           "    \"red\": \"" + String(b_values[2]) + "\"\n"
+           "  {\n";
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
+           "    \"" + B_NAME[i] + "\": \"" + String(b_values[i]) + "\",\n";
+    }
+    line = line +
            "  }\n"
            "}";
     server.send(200, TEXTPLAIN, line);
@@ -526,13 +529,17 @@ void setup(void)
   {
     writetosyslog(34);
     line = MSG[4] + "\n" +
-           swversion + "\n" +
-           String(i_values[0]) + "\n" +
-           String(i_values[1]) + "\n" +
-           String(i_values[2]) + "\n" +
-           String(b_values[0]) + "\n" +
-           String(b_values[1]) + "\n" +
-           String(b_values[2]);
+           swversion + "\n";
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
+           String(i_values[i]) + "\n";
+    }
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
+           String(b_values[i]) + "\n";
+    }
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -546,15 +553,21 @@ void setup(void)
            "    <name>" + MSG[4] + "</name>\n"
            "    <version>" + swversion + "</version>\n"
            "  </software>\n"
-           "  <value>\n"
-           "    <rhint>" + String(i_values[0]) + "</rhint>\n"
-           "    <tint>" + String(i_values[1]) + "</tint>\n"
-           "    <text>" + String(i_values[2]) + "</text>\n"
+           "  <value>\n";
+    for (int i = 0; i < 2, i++)
+    {
+      line = line +       
+           "    <" + I_NAME[i] + ">" + String(i_values[i]) + "</" + I_NAME[i] + ">\n";
+    }
+    line = line +
            "  </value>\n"
            "  <led>\n"
-           "    <green>" + String(b_values[0]) + "</green>\n"
-           "    <yellow>" + String(b_values[1]) + "</yellow>\n"
-           "    <red>" + String(b_values[2]) + "</red>\n"
+    for (int i = 0; i < 3, i++)
+    {
+      line = line +       
+           "    <" + B_NAME[i] + ">" + String(b_values[i]) + "</" + B_NAME[i] + ">\n";
+    }
+    line = line +
            "  </led>\n"
            "</xml>";
     server.send(200, TEXTPLAIN, line);
