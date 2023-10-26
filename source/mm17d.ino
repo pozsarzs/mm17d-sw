@@ -29,8 +29,8 @@ int count;
 #endif
 
 // settings
-const char   *WIFI_SSID         = "PozsiNet-1";
-const char   *WIFI_PASSWORD     = "b62svm5euges";
+const char   *WIFI_SSID         = "";
+const char   *WIFI_PASSWORD     = "";
 
 // ports
 const int     PRT_DO_BUZZER     = 14;
