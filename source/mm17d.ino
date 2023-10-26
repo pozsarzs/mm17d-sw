@@ -29,8 +29,8 @@ int count;
 #endif
 
 // settings
-const char   *WIFI_SSID         = "";
-const char   *WIFI_PASSWORD     = "";
+const char   *WIFI_SSID         = "PozsiNet-1";
+const char   *WIFI_PASSWORD     = "b62svm5euges";
 
 // ports
 const int     PRT_DO_BUZZER     = 14;
@@ -122,6 +122,27 @@ ESP8266WebServer server(80);
 ModbusIP mbtcp;
 ModbusRTU mbrtu;
 
+// write a line to system log
+void writetosyslog(int msgnum)
+{
+  if (syslog[63] == 0)
+  {
+    for (int i = 0; i < 64; i++)
+    {
+      if (syslog[i] == 0)
+      {
+        syslog[i] = msgnum;
+        break;
+      }
+    }
+  } else
+  {
+    for (int i = 1; i < 64; i++)
+      syslog[i - 1] = syslog[i];
+    syslog[63] = msgnum;
+  }
+}
+
 // switch on/off blue LED
 void blueled(boolean b)
 {
@@ -204,6 +225,128 @@ void beep(int num)
     noTone(PRT_DO_BUZZER);
     delay (100);
   }
+}
+
+// measure internal temperature and relative humidity
+int measureinttemphum()
+{
+  float fh, ft;
+  fh = dht.readHumidity();
+  ft = dht.readTemperature(false);
+  if (isnan(fh) || isnan(ft))
+  {
+    beep(1);
+    writetosyslog(17);
+    return 0;
+  } else
+  {
+    i_values[0] = (int)fh;
+    i_values[1] = (int)ft;
+    mbtcp.Ireg(0, i_values[0]);
+    mbtcp.Ireg(1, i_values[1]);
+    mbrtu.Ireg(0, i_values[0]);
+    mbrtu.Ireg(1, i_values[1]);
+    return 1;
+  }
+}
+
+// measure external temperature
+boolean measureexttemp()
+{
+  float u1;
+  float r2;
+  float t;
+  const float C0 = -245.19;
+  const float C1 = 2.5293;
+  const float C2 = -0.066046;
+  const float C3 = 4.0422E-3;
+  const float C4 = -2.0697E-6;
+  const float C5 = -0.025422;
+  const float C6 = 1.6883E-3;
+  const float C7 = -1.3601E-6;
+  const float R1 = 560; // ohm
+  const float U0 = 5000; // mV
+
+  u1 = analogRead(PRT_AI_SENSOR2);
+
+#ifdef PT100_SIMULATION
+  u1 = U0 * (RPT[count] / (R1 + RPT[count]));
+  Serial.println("Tpt100: " + String(int(TPT[count])) + " °C");
+  Serial.println("Rpt100: " + String(RPT[count]) + " Ω");
+  Serial.println("Uadc:   " + String(int(u1)) + " mV");
+  if (count < 2) count++ else count = 0;
+#endif
+
+  if ((u1 == 0) || (u1 == MAXADCVALUE))
+  {
+    beep(1);
+    writetosyslog(18);
+    return false;
+  } else
+  {
+    r2 = u1 / ((U0 - u1) / R1);
+    t = (((((r2 * C4 + C3) * r2 + C2) * r2 + C1) * r2) / ((((r2 * C7 + C6) * r2 + C5) * r2) + 1)) + C0;
+
+#ifdef PT100_SIMULATION
+    Serial.println("Tcalc:  " + String(int(t)) + " °C\n");
+#endif
+
+    i_values[2] = (int)t;
+    mbtcp.Ireg(2, i_values[2]);
+    mbrtu.Ireg(2, i_values[2]);
+    return true;
+  }
+}
+
+// blink blue LED and write to log
+void httpquery()
+{
+  blinkblueled();
+  writetosyslog(14);
+}
+
+// blink blue LED and write to log
+uint16_t modbustcpquery(TRegister* reg, uint16_t val)
+{
+  blinkblueled();
+  writetosyslog(15);
+  return val;
+}
+
+// blink blue LED and write to log
+uint16_t modbusrtuquery(TRegister* reg, uint16_t val)
+{
+  blinkblueled();
+  writetosyslog(16);
+  return val;
+}
+
+// error 404 page
+void handleNotFound()
+{
+  httpquery();
+  writetosyslog(19);
+  server.send(404, TEXTPLAIN, MSG[19]);
+}
+
+// loop function
+void loop(void)
+{
+  boolean measureerror;
+  server.handleClient();
+  unsigned long currtime = millis();
+  if (currtime - prevtime >= INTERVAL)
+  {
+    prevtime = currtime;
+    measureerror = measureinttemphum() && measureexttemp();
+    greenled(measureerror);
+    redled(! measureerror);
+    blinkyellowled();
+  }
+  mbtcp.task();
+  delay(10);
+  mbrtu.task();
+  yield();
 }
 
 // initializing function
@@ -483,15 +626,9 @@ void setup(void)
     line = "\"name\",\"" + MSG[4] + "\"\n"
            "\"version\",\"" + swversion + "\"\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             "\"" + I_NAME[i] + "\",\"" + String(i_values[i]) + "\"\n";
-    }
+      line = line + "\"" + I_NAME[i] + "\",\"" + String(i_values[i]) + "\"\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             "\"" + B_NAME[i] + "\",\"" + String(b_values[i]) + "\"\n";
-    }
+      line = line + "\"" + B_NAME[i] + "\",\"" + String(b_values[i]) + "\"\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -507,18 +644,12 @@ void setup(void)
            "  },\n"
            "  {\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             "    \"" + I_NAME[i] + "\": \"" + String(i_values[i]) + "\",\n";
-    }
+      line = line + "    \"" + I_NAME[i] + "\": \"" + String(i_values[i]) + "\",\n";
     line = line +
            "  },\n"
            "  {\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             "    \"" + B_NAME[i] + "\": \"" + String(b_values[i]) + "\",\n";
-    }
+      line = line + "    \"" + B_NAME[i] + "\": \"" + String(b_values[i]) + "\",\n";
     line = line +
            "  }\n"
            "}";
@@ -533,15 +664,9 @@ void setup(void)
     line = MSG[4] + "\n" +
            swversion + "\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             String(i_values[i]) + "\n";
-    }
+      line = line + String(i_values[i]) + "\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             String(b_values[i]) + "\n";
-    }
+      line = line + String(b_values[i]) + "\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -555,22 +680,16 @@ void setup(void)
            "    <name>" + MSG[4] + "</name>\n"
            "    <version>" + swversion + "</version>\n"
            "  </software>\n"
-           "  <value>\n";
+           "  <integer>\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             "    <" + I_NAME[i] + ">" + String(i_values[i]) + "</" + I_NAME[i] + ">\n";
-    }
+      line = line + "    <" + I_NAME[i] + ">" + String(i_values[i]) + "</" + I_NAME[i] + ">\n";
     line = line +
-           "  </value>\n"
-           "  <led>\n";
+           "  </integer>\n"
+           "  <bit>\n";
     for (int i = 0; i < 2; i++)
-    {
-      line = line +
-             "    <" + B_NAME[i] + ">" + String(b_values[i]) + "</" + B_NAME[i] + ">\n";
-    }
+      line = line + "    <" + B_NAME[i] + ">" + String(b_values[i]) + "</" + B_NAME[i] + ">\n";
     line = line +
-           "  </led>\n"
+           "  </bit>\n"
            "</xml>";
     server.send(200, TEXTPLAIN, line);
     httpquery();
@@ -580,153 +699,4 @@ void setup(void)
   Serial.println(MSG[8]);
   Serial.println(MSG[21]);
   beep(1);
-}
-
-// error 404 page
-void handleNotFound()
-{
-  httpquery();
-  writetosyslog(19);
-  server.send(404, TEXTPLAIN, MSG[19]);
-}
-
-// loop function
-void loop(void)
-{
-  boolean measureerror;
-  server.handleClient();
-  unsigned long currtime = millis();
-  if (currtime - prevtime >= INTERVAL)
-  {
-    prevtime = currtime;
-    measureerror = measureinttemphum() && measureexttemp();
-    greenled(measureerror);
-    redled(! measureerror);
-    blinkyellowled();
-  }
-  mbtcp.task();
-  delay(10);
-  mbrtu.task();
-  yield();
-}
-
-// measure internal temperature and relative humidity
-int measureinttemphum()
-{
-  float fh, ft;
-  fh = dht.readHumidity();
-  ft = dht.readTemperature(false);
-  if (isnan(fh) || isnan(ft))
-  {
-    beep(1);
-    writetosyslog(17);
-    return 0;
-  } else
-  {
-    i_values[0] = (int)fh;
-    i_values[1] = (int)ft;
-    mbtcp.Ireg(0, i_values[0]);
-    mbtcp.Ireg(1, i_values[1]);
-    mbrtu.Ireg(0, i_values[0]);
-    mbrtu.Ireg(1, i_values[1]);
-    return 1;
-  }
-}
-
-// measure external temperature
-boolean measureexttemp()
-{
-  float u1;
-  float r2;
-  float t;
-  const float C0 = -245.19;
-  const float C1 = 2.5293;
-  const float C2 = -0.066046;
-  const float C3 = 4.0422E-3;
-  const float C4 = -2.0697E-6;
-  const float C5 = -0.025422;
-  const float C6 = 1.6883E-3;
-  const float C7 = -1.3601E-6;
-  const float R1 = 560; // ohm
-  const float U0 = 5000; // mV
-
-  u1 = analogRead(PRT_AI_SENSOR2);
-
-#ifdef PT100_SIMULATION
-  u1 = U0 * (RPT[count] / (R1 + RPT[count]));
-  Serial.println("Tpt100: " + String(int(TPT[count])) + " °C");
-  Serial.println("Rpt100: " + String(RPT[count]) + " Ω");
-  Serial.println("Uadc:   " + String(int(u1)) + " mV");
-  if (count < 2)
-  {
-    count++;
-  } else
-  {
-    count = 0;
-  }
-#endif
-
-  if ((u1 == 0) || (u1 == MAXADCVALUE))
-  {
-    beep(1);
-    writetosyslog(18);
-    return false;
-  } else
-  {
-    r2 = u1 / ((U0 - u1) / R1);
-    t = (((((r2 * C4 + C3) * r2 + C2) * r2 + C1) * r2) / ((((r2 * C7 + C6) * r2 + C5) * r2) + 1)) + C0;
-
-#ifdef PT100_SIMULATION
-    Serial.println("Tcalc:  " + String(int(t)) + " °C\n");
-#endif
-
-    i_values[2] = (int)t;
-    mbtcp.Ireg(2, i_values[2]);
-    mbrtu.Ireg(2, i_values[2]);
-    return true;
-  }
-}
-
-// blink blue LED and write to log
-void httpquery()
-{
-  blinkblueled();
-  writetosyslog(14);
-}
-
-// blink blue LED and write to log
-uint16_t modbustcpquery(TRegister* reg, uint16_t val)
-{
-  blinkblueled();
-  writetosyslog(15);
-  return val;
-}
-
-// blink blue LED and write to log
-uint16_t modbusrtuquery(TRegister* reg, uint16_t val)
-{
-  blinkblueled();
-  writetosyslog(16);
-  return val;
-}
-
-// write a line to system log
-void writetosyslog(int msgnum)
-{
-  if (syslog[63] == 0)
-  {
-    for (int i = 0; i < 64; i++)
-    {
-      if (syslog[i] == 0)
-      {
-        syslog[i] = msgnum;
-        break;
-      }
-    }
-  } else
-  {
-    for (int i = 1; i < 64; i++)
-      syslog[i - 1] = syslog[i];
-    syslog[63] = msgnum;
-  }
 }
