@@ -42,26 +42,26 @@ const int     PRT_DI_SENSOR1    = 12;
 const int     PRT_AI_SENSOR2    = 0;
 
 // output data
-const String  I_DESC[3]         = {"internal relative humidity in percent",
-                                   "internal temperature in degree Celsius",
-                                   "external temperature in degree Celsius"
+const String  I_DESC[3]         = {"internal relative humidity in %",
+                                   "internal temperature in &deg;C",
+                                   "external temperature in &deg;C"
                                   };
 const String  B_DESC[3]         = {"status of the green LED",
                                    "status of the yellow LED",
                                    "status of the red LED"
                                   };
 const String  I_NAME[3]         = {"rhint", "tint", "text"};
-const String  B_NAME[3]         = {"green", "yellow", "red"};
+const String  B_NAME[3]         = {"ledg", "ledy", "ledr"};
 boolean       b_values[3]       = {false, false, false};
 int           i_values[3]       = {0, 0, 0};
 
 // other constants
-const byte    SWMVERSION        = 0;
-const byte    SWSVERSION        = 1;
 const int     MAXADCVALUE       = 1024;
 const int     SERIALSPEED       = 9600;
 const int     MB_UID            = 1;
 const long    INTERVAL          = 10000;
+const String  SWNAME            = "MM17D";
+const String  SWVERSION         = "0.1";
 const String  TEXTHTML          = "text/html";
 const String  TEXTPLAIN         = "text/plain";
 
@@ -70,17 +70,16 @@ int           syslog[64]        = {};
 String        line;
 String        myipaddress;
 String        mymacaddress;
-String        swversion;
 unsigned long prevtime          = 0;
 
 // messages
-const String MSG[39]            =
+const String MSG[35]            =
 {
   /*  0 */  "",
   /*  1 */  "MM17D * T/RH measuring device",
   /*  2 */  "Copyright (C) 2023 Pozsar Zsolt",
   /*  3 */  "http://www.pozsarzs.hu/",
-  /*  4 */  "MM17D",
+  /*  4 */  "",
   /*  5 */  "* Initializing GPIO ports...",
   /*  6 */  "* Initializing sensors...",
   /*  7 */  "* Connecting to wireless network",
@@ -95,26 +94,22 @@ const String MSG[39]            =
   /* 16 */  "* Modbus/RTU query received ",
   /* 17 */  "* E01: Failed to read T/RH sensor!",
   /* 18 */  "* E02: Failed to read PT100!",
-  /* 19 */  "* E03: Error 404: page not found!",
+  /* 19 */  "* E03:",
   /* 20 */  "* E04:",
   /* 21 */  "* Attention! The serial console is off!",
-  /* 22 */  "  internal humidity:\t",
-  /* 23 */  "  internal temperature:\t",
-  /* 24 */  "  external temperature:\t",
+  /* 22 */  "* Starting Modbus/TCP server...",
+  /* 23 */  "* Starting Modbus/RTU slave...",
+  /* 24 */  "  my Modbus UID:          ",
   /* 25 */  "* Green",
   /* 26 */  "* Red",
   /* 27 */  " LED is switched ",
   /* 28 */  "on.",
   /* 29 */  "off.",
-  /* 30 */  "* Periodic measure:",
+  /* 30 */  "  serial port parameters: ",
   /* 31 */  "  get summary page",
   /* 32 */  "  get help page",
   /* 33 */  "  get log page",
-  /* 34 */  "  get all measured data",
-  /* 35 */  "* Starting Modbus/TCP server...",
-  /* 36 */  "* Starting Modbus/RTU slave...",
-  /* 37 */  "  my Modbus UID:          ",
-  /* 38 */  "  serial port parameters: "
+  /* 34 */  "  get all measured data"
 };
 
 DHT dht(PRT_DI_SENSOR1, TYP_SENSOR1, 11);
@@ -324,8 +319,6 @@ uint16_t modbusrtuquery(TRegister* reg, uint16_t val)
 // error 404 page
 void handleNotFound()
 {
-  httpquery();
-  writetosyslog(19);
   server.send(404, TEXTPLAIN, MSG[19]);
 }
 
@@ -352,13 +345,12 @@ void loop(void)
 // initializing function
 void setup(void)
 {
-  swversion = String(SWMVERSION) + "." + String(SWSVERSION);
   // set serial port
   Serial.begin(SERIALSPEED);
   // write program information
   Serial.println("");
   Serial.println("");
-  Serial.println(MSG[1] + " * v" + swversion );
+  Serial.println(MSG[1] + " * v" + SWVERSION );
   Serial.println(MSG[2] +  " <" + MSG[3] + ">");
   // initialize GPIO ports
   writetosyslog(5);
@@ -395,36 +387,32 @@ void setup(void)
   Serial.println(MSG[11] + WiFi.subnetMask().toString());
   Serial.println(MSG[12] + WiFi.gatewayIP().toString());
   // start Modbus/TCP server
-  writetosyslog(35);
-  Serial.print(MSG[35]);
+  writetosyslog(22);
+  Serial.print(MSG[22]);
   mbtcp.server();
   Serial.println(MSG[8]);
   // start Modbus/RTU slave
-  writetosyslog(36);
-  Serial.print(MSG[36]);
+  writetosyslog(23);
+  Serial.print(MSG[23]);
   mbrtu.begin(&Serial);
   mbrtu.setBaudrate(SERIALSPEED);
   mbrtu.slave(MB_UID);
   Serial.println(MSG[8]);
-  Serial.println(MSG[37] + String(MB_UID));
-  Serial.println(MSG[38] + String(SERIALSPEED) + " bps, 8N1");
+  Serial.println(MSG[24] + String(MB_UID));
+  Serial.println(MSG[30] + String(SERIALSPEED) + " bps, 8N1");
   // set Modbus registers
-  for (int i = 0; i < 2; i++)
+  for (int i = 0; i < 3; i++)
   {
     mbtcp.addIsts(i, b_values[i]);
     mbrtu.addIsts(i, b_values[i]);
     mbtcp.addIreg(i, i_values[i]);
     mbrtu.addIreg(i, i_values[i]);
   }
-  mbtcp.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
-  mbrtu.addIreg(9998, SWMVERSION * 256 + SWSVERSION);
   // set Modbus callback
   mbtcp.onGetIsts(0, modbustcpquery, 3);
   mbtcp.onGetIreg(0, modbustcpquery, 3);
-  mbtcp.onGetIreg(9998, modbustcpquery);
   mbrtu.onGetIsts(0, modbustcpquery, 3);
   mbrtu.onGetIreg(0, modbusrtuquery, 3);
-  mbrtu.onGetIreg(9998, modbusrtuquery);
   // start webserver
   writetosyslog(13);
   Serial.print(MSG[13]);
@@ -436,39 +424,33 @@ void setup(void)
     line =
       "<html>\n"
       "  <head>\n"
-      "    <title>" + MSG[1] + " | Help page</title>\n"
+      "    <title>" + MSG[1] + " | Help</title>\n"
       "  </head>\n"
       "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
       "    <h2>" + MSG[1] + "</h2>\n"
       "    <br>\n"
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[37] + String(MB_UID) + "<br>\n"
-      "    " + MSG[38] + String(SERIALSPEED) + " bps, 8N1<br>\n"
-      "    software version: v" + swversion + "<br>\n"
+      "    " + MSG[24] + String(MB_UID) + "<br>\n"
+      "    " + MSG[30] + String(SERIALSPEED) + " bps, 8N1<br>\n"
+      "    software version: v" + SWVERSION + "<br>\n"
       "    <hr>\n"
       "    <h3>Information and data access</h3>\n"
       "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
       "      <tr><td colspan=\"3\" align=\"center\"><b>Information pages</b></td></tr>\n"
       "      <tr>\n"
-      "        <td>\n"
-      "          <a href=\"http://" + myipaddress + "/\">http://" + myipaddress + "/</a>"
-      "        </td>\n"
-      "        <td>Help</td>\n"
+      "        <td><a href=\"http://" + myipaddress + "/\">http://" + myipaddress + "/</a></td>\n"
+      "        <td>help</td>\n"
       "        <td>" + TEXTHTML + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>\n"
-      "          <a href=\"http://" + myipaddress + "/summary\">http://" + myipaddress + "/summary</a>"
-      "        </td>\n"
-      "        <td>Summary page</td>\n"
+      "        <td><a href=\"http://" + myipaddress + "/summary\">http://" + myipaddress + "/summary</a></td>\n"
+      "        <td>summary page</td>\n"
       "        <td>" + TEXTHTML + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>\n"
-      "          <a href=\"http://" + myipaddress + "/log\">http://" + myipaddress + "/log</a>"
-      "        </td>\n"
-      "        <td>Log page</td>\n"
+      "        <td><a href=\"http://" + myipaddress + "/log\">http://" + myipaddress + "/log</a></td>\n"
+      "        <td>log</td>\n"
       "        <td>" + TEXTHTML + "</td>\n"
       "      </tr>\n"
       "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with HTTP</b></td>\n"
@@ -476,62 +458,51 @@ void setup(void)
       "        <td>\n"
       "          <a href=\"http://" + myipaddress + "/get/csv\">http://" + myipaddress + "/get/csv</a>"
       "        </td>\n"
-      "        <td>Get all measured values in CSV format</td>\n"
+      "        <td>all measured values and status in CSV format</td>\n"
       "        <td>" + TEXTPLAIN + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>\n"
-      "          <a href=\"http://" + myipaddress + "/get/json\">http://" + myipaddress + "/get/json</a>"
-      "        </td>\n"
-      "        <td>Get all measured values in JSON format</td>\n"
+      "        <td><a href=\"http://" + myipaddress + "/get/json\">http://" + myipaddress + "/get/json</a></td>\n"
+      "        <td>all measured values and status in JSON format</td>\n"
       "        <td>" + TEXTPLAIN + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>\n"
-      "          <a href=\"http://" + myipaddress + "/get/txt\">http://" + myipaddress + "/get/txt</a>"
-      "        </td>\n"
-      "        <td>Get all measured values in TXT format</td>\n"
+      "        <td><a href=\"http://" + myipaddress + "/get/txt\">http://" + myipaddress + "/get/txt</a></td>\n"
+      "        <td>all measured values and status in TXT format</td>\n"
       "        <td>" + TEXTPLAIN + "</td>\n"
       "      </tr>\n"
       "      <tr>\n"
-      "        <td>\n"
-      "          <a href=\"http://" + myipaddress + "/get/xml\">http://" + myipaddress + "/get/xml</a>"
-      "        </td>\n"
-      "        <td>Get all measured values in XML format</td>\n"
+      "        <td><a href=\"http://" + myipaddress + "/get/xml\">http://" + myipaddress + "/get/xml</a></td>\n"
+      "        <td>all measured values and status in XML format</td>\n"
       "        <td>" + TEXTPLAIN + "</td>\n"
       "      </tr>\n"
       "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n";
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
-      line = line +
-             "      <tr>\n"
-             "        <td>" + String(i + 10001) + "</td>\n"
-             "        <td>" + B_DESC[i] + "</td>\n"
-             "        <td>bit</td>\n"
-             "      </tr>\n";
+      line +=
+        "      <tr>\n"
+        "        <td>" + String(i + 10001) + "</td>\n"
+        "        <td>" + B_DESC[i] + "</td>\n"
+        "        <td>bit</td>\n"
+        "      </tr>\n";
     }
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
-      line = line +
-             "      <tr>\n"
-             "        <td>" + String(i + 30001) + "</td>\n"
-             "        <td>" + I_DESC[i] + "</td>\n"
-             "        <td>integer</td>\n"
-             "      </tr>\n";
+      line +=
+        "      <tr>\n"
+        "        <td>" + String(i + 30001) + "</td>\n"
+        "        <td>" + I_DESC[i] + "</td>\n"
+        "        <td>integer</td>\n"
+        "      </tr>\n";
     }
-    line = line +
-           "      <tr>\n"
-           "        <td>39999</td>\n"
-           "        <td>Software version</td>\n"
-           "        <td>two byte</td>\n"
-           "      </tr>\n"
-           "    </table>\n"
-           "    <br>\n"
-           "    <hr>\n"
-           "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a><center>\n"
-           "    <br>\n"
-           "  </body>\n"
-           "</html>\n";
+    line +=
+      "    </table>\n"
+      "    <br>\n"
+      "    <hr>\n"
+      "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a></center>\n"
+      "    <br>\n"
+      "  </body>\n"
+      "</html>\n";
     server.send(200, TEXTHTML, line);
     httpquery();
     delay(100);
@@ -543,43 +514,43 @@ void setup(void)
     line =
       "<html>\n"
       "  <head>\n"
-      "    <title>" + MSG[1] + " | Summary page</title>\n"
+      "    <title>" + MSG[1] + " | Summary</title>\n"
       "  </head>\n"
       "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
       "    <h2>" + MSG[1] + "</h2>\n"
       "    <br>\n"
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[37] + String(MB_UID) + "<br>\n"
-      "    " + MSG[38] + String(SERIALSPEED) + " bps, 8N1<br>\n"
-      "    software version: v" + swversion + "<br>\n"
+      "    " + MSG[24] + String(MB_UID) + "<br>\n"
+      "    " + MSG[30] + String(SERIALSPEED) + " bps, 8N1<br>\n"
+      "    software version: v" + SWVERSION + "<br>\n"
       "    <hr>\n"
       "    <h3>Measured values</h3>\n"
       "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n";
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
-      line = line +
-             "      <tr>\n"
-             "        <td>" + I_DESC[i] + "</td>\n"
-             "        <td align=\"right\">" + String(i_values[i]) + " %</td>\n"
-             "      </tr>\n";
+      line +=
+        "      <tr>\n"
+        "        <td>" + I_DESC[i] + "</td>\n"
+        "        <td align=\"right\">" + String(i_values[i]) + "</td>\n"
+        "      </tr>\n";
     }
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
-      line = line +
-             "      <tr>\n"
-             "        <td>" + B_DESC[i] + "</td>\n"
-             "        <td align=\"right\">" + String(b_values[i]) + " %</td>\n"
-             "      </tr>\n";
+      line +=
+        "      <tr>\n"
+        "        <td>" + B_DESC[i] + "</td>\n"
+        "        <td align=\"right\">" + String(b_values[i]) + "</td>\n"
+        "      </tr>\n";
     }
-    line = line +
-           "    </table>\n"
-           "    <br>\n"
-           "    <hr>\n"
-           "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a><center>\n"
-           "    <br>\n"
-           "  </body>\n"
-           "</html>\n";
+    line +=
+      "    </table>\n"
+      "    <br>\n"
+      "    <hr>\n"
+      "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a></center>\n"
+      "    <br>\n"
+      "  </body>\n"
+      "</html>\n";
     server.send(200, TEXTHTML, line);
     httpquery();
     delay(100);
@@ -591,30 +562,30 @@ void setup(void)
     line =
       "<html>\n"
       "  <head>\n"
-      "    <title>" + MSG[1] + " | System log</title>\n"
+      "    <title>" + MSG[1] + " | Log</title>\n"
       "  </head>\n"
       "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
       "    <h2>" + MSG[1] + "</h2>\n"
       "    <br>\n"
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[37] + String(MB_UID) + "<br>\n"
-      "    " + MSG[38] + String(SERIALSPEED) + " bps, 8N1<br>\n"
-      "    software version: v" + swversion + "<br>\n"
+      "    " + MSG[24] + String(MB_UID) + "<br>\n"
+      "    " + MSG[30] + String(SERIALSPEED) + " bps, 8N1<br>\n"
+      "    software version: v" + SWVERSION + "<br>\n"
       "    <hr>\n"
       "    <h3>Last 64 lines of system log:</h3>\n"
       "    <table border=\"0\" cellpadding=\"3\" cellspacing=\"0\">\n";
     for (int i = 0; i < 64; i++)
       if (syslog[i] > 0)
         line = line + "      <tr><td><pre>" + String(i) + "</pre></td><td><pre>" + MSG[syslog[i]] + "</pre></td></tr>\n";
-    line = line +
-           "    </table>\n"
-           "    <br>\n"
-           "    <hr>\n"
-           "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a><center>\n"
-           "    <br>\n"
-           "  </body>\n"
-           "</html>\n";
+    line +=
+      "    </table>\n"
+      "    <br>\n"
+      "    <hr>\n"
+      "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a></center>\n"
+      "    <br>\n"
+      "  </body>\n"
+      "</html>\n";
     server.send(200, TEXTHTML, line);
     httpquery();
     delay(100);
@@ -623,11 +594,11 @@ void setup(void)
   server.on("/get/csv", []()
   {
     writetosyslog(34);
-    line = "\"name\",\"" + MSG[4] + "\"\n"
-           "\"version\",\"" + swversion + "\"\n";
-    for (int i = 0; i < 2; i++)
+    line = "\"name\",\"" + SWNAME + "\"\n"
+           "\"version\",\"" + SWVERSION + "\"\n";
+    for (int i = 0; i < 3; i++)
       line = line + "\"" + I_NAME[i] + "\",\"" + String(i_values[i]) + "\"\n";
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
       line = line + "\"" + B_NAME[i] + "\",\"" + String(b_values[i]) + "\"\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
@@ -638,21 +609,25 @@ void setup(void)
   {
     writetosyslog(34);
     line = "{\n"
-           "  {\n"
-           "    \"name\": \"" + MSG[4] + "\",\n"
-           "    \"version\": \"" + swversion + "\"\n"
-           "  },\n"
-           "  {\n";
-    for (int i = 0; i < 2; i++)
-      line = line + "    \"" + I_NAME[i] + "\": \"" + String(i_values[i]) + "\",\n";
-    line = line +
-           "  },\n"
-           "  {\n";
-    for (int i = 0; i < 2; i++)
-      line = line + "    \"" + B_NAME[i] + "\": \"" + String(b_values[i]) + "\",\n";
-    line = line +
-           "  }\n"
-           "}";
+           "  \"name\": \"" + SWNAME + "\",\n"
+           "  \"version\": \"" + SWVERSION + "\",\n"
+           "  \"integer\": {\n";
+    for (int i = 0; i < 3; i++)
+    {
+      line += "    \"" + I_NAME[i] + "\": \"" + String(i_values[i]);
+      if (i < 2 ) line = line + "\",\n"; else  line = line + "\"\n";
+    }
+    line +=
+      "  },\n"
+      "  \"bit\": {\n";
+    for (int i = 0; i < 3; i++)
+    {
+      line += "    \"" + B_NAME[i] + "\": \"" + String(b_values[i]);
+      if (i < 2 ) line = line + "\",\n"; else  line = line + "\"\n";
+    }
+    line +=
+      "  }\n"
+      "}\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -661,11 +636,11 @@ void setup(void)
   server.on("/get/txt", []()
   {
     writetosyslog(34);
-    line = MSG[4] + "\n" +
-           swversion + "\n";
-    for (int i = 0; i < 2; i++)
+    line = SWNAME + "\n" +
+           SWVERSION + "\n";
+    for (int i = 0; i < 3; i++)
       line = line + String(i_values[i]) + "\n";
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
       line = line + String(b_values[i]) + "\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
@@ -677,20 +652,20 @@ void setup(void)
     writetosyslog(34);
     line = "<xml>\n"
            "  <software>\n"
-           "    <name>" + MSG[4] + "</name>\n"
-           "    <version>" + swversion + "</version>\n"
+           "    <name>" + SWNAME + "</name>\n"
+           "    <version>" + SWVERSION + "</version>\n"
            "  </software>\n"
            "  <integer>\n";
-    for (int i = 0; i < 2; i++)
-      line = line + "    <" + I_NAME[i] + ">" + String(i_values[i]) + "</" + I_NAME[i] + ">\n";
-    line = line +
-           "  </integer>\n"
-           "  <bit>\n";
-    for (int i = 0; i < 2; i++)
-      line = line + "    <" + B_NAME[i] + ">" + String(b_values[i]) + "</" + B_NAME[i] + ">\n";
-    line = line +
-           "  </bit>\n"
-           "</xml>";
+    for (int i = 0; i < 3; i++)
+      line += "    <" + I_NAME[i] + ">" + String(i_values[i]) + "</" + I_NAME[i] + ">\n";
+    line +=
+      "  </integer>\n"
+      "  <bit>\n";
+    for (int i = 0; i < 3; i++)
+      line += "    <" + B_NAME[i] + ">" + String(b_values[i]) + "</" + B_NAME[i] + ">\n";
+    line +=
+      "  </bit>\n"
+      "</xml>";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);

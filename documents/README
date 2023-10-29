@@ -3,12 +3,12 @@ Operating program for MM17D device
 
 1. About software
 ~~~~~~~~~~~~~~~~~
-
   It is an internal software for RH/T measuring device. This device can measure
 internal and external temperature and internal humidity.
   It has a web interface. The measured data can be queried via WLAN using HTTP in
 four formats (CSV, JSON, TXT and XML) and using Modbus/TCP. Can also be queried
-via RS-232 TTL port using Modbus/RTU protocol.
+via RS-232 TTL port using Modbus/RTU protocol. Serial port parameters for serial
+console and Modbus/RTu connection: 9600 bps, 8N1.
 
 Requirements:
   Hardware: ESP8266 Huzzah Breakout microcontroller
@@ -19,37 +19,88 @@ Requirements:
             - ESP8266WebServer library v1.0 by Ivan Grokhotkov
             - ESP8266WiFi library v1.0 by Ivan Grokhotkov
 
-2. Information and data access
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Information pages:
-  http://../          Help page                                text/html
-  http://../summary   Summary page                             text/html
-  http://../log       Log page           0                     text/html
+2. Settings
+~~~~~~~~~~~
+In the 'mm17d.ino' file:
+
+  // settings
+  const char   *WIFI_SSID         = "";
+  const char   *WIFI_PASSWORD     = "";
+
+3. Serial console output
+~~~~~~~~~~~~~~~~~~~~~~~~
+The serial console shuts down at the end of the startup process to free
+the serial port for Modbus/RTu communication.
+
+  MM17D * T/RH measuring device * v0.1
+  Copyright (C) 2023 Pozsar Zsolt <http://www.pozsarzs.hu/>
+  * Initializing GPIO ports...
+  * Initializing sensors...
+  * Connecting to wireless network.......done
+    my MAC address:         80:7D:3A:5D:53:84
+    my IP address:          192.168.0.103
+    subnet mask:            255.255.255.0
+    gateway IP address:     192.168.0.1
+  * Starting Modbus/TCP server...done
+  * Starting Modbus/RTU slave...done
+    my Modbus UID:          1
+    serial port parameters: 9600 bps, 8N1
+  * Starting webserver...done
+  * Attention! The serial console is off!
+
+4. Information and data retrieving
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+HTML information pages:
+  http://../          help                                     text/html
+  http://../summary   summary                                  text/html
+  http://../log       log                                      text/html
 
 Data access with HTTP:
-  http://../get/csv   Get all measured values in CSV format    text/plain
-  http://../get/json  Get all measured values in JSON format   text/plain
+  http://../get/csv   all values and status in CSV format      text/plain
+  http://../get/json  all values and status in JSON format     text/plain
   http://../get/txt   Get all measured values in TXT format    text/plain
   http://../get/xml   Get all measured values in XML format    text/plain
 
 Data access with Modbus:
-  10001               Green LED                 (0/1: off/on)  bit
-  10002               Yellow LED                (0/1: off/on)  bit
-  10003               Red LED                   (0/1: off/on)  bit
-  30001               Internal humidity in percent             integer
-  30002               Internal temperature in degree Celsius   integer
-  30003               External temperature in degree Celsius   integer
-  39999               Software version                         two byte
+  10001               status of the green LED   (0/1: off/on)  bit
+  10002               status of the yellow LED  (0/1: off/on)  bit
+  10003               status of the red LED     (0/1: off/on)  bit
+  30001               internal humidity in percent             integer
+  30002               internal temperature in degree Celsius   integer
+  30003               external temperature in degree Celsius   integer
 
-Modbus/RTU connection parameters:
-  port:    RS-232
-  speed:   9600 bps
-  databit: 8
-  parity:  None
-  stopbit: 1
+4. Output file format at HTTP retrieving
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CSV:                       TXT:
+  "name","MM17D"             MM17D
+  "version","0.1"            0.1
+  "rhint","67"               67
+  "tint","19"                19
+  "text","-2"                -2
+  "ledg","1"                 1
+  "ledy","0"                 0
+  "ledr","0"                 0
 
-3. How to get installer package?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+JSON:                      XML:
+  {                          <xml>
+    "name": "MM17D",            <software>
+    "version": "0.1",             <name>MM17D</name>
+    "integer": {                  <version>0.1</version>
+      "rhint": "67",            </software>
+      "tint": "20",             <integer>
+      "text": "-2"                <rhint>67</rhint>
+    },                            <tint>20</tint>
+    "bit": {                      <text>-2</text>
+      "ledg": "1",              </integer>
+      "ledy": "0",              <bit>
+      "ledr": "0"                 <ledg>1</ledg>
+    }                             <ledy>0</ledy>
+  }                               <ledr>0</ledr>
+                                </bit>
+                              </xml>
+
+5. Get installer package
+~~~~~~~~~~~~~~~~~~~~~~~~
 a. Visit homepage (see later) to download package:
 
   architecture  operation system        filename
@@ -60,7 +111,7 @@ b. Download from Github
 
   $ git clone https://github.com/pozsarzs/mm17d-sw.git
 
-4. Contact
+6. Contact
 ~~~~~~~~~~
    Homepage:             <http://www.pozsarzs.hu>
    Author:               Pozsar Zsolt
