@@ -20,7 +20,7 @@
 #include <ModbusRTU.h>
 
 #define       TYP_SENSOR1 DHT11
-// #define       PT100_SIMULATION
+//#define       PT100_SIMULATION
 
 #ifdef PT100_SIMULATION
 const float   TPT[3]            = { -30, 0, 50};       // T in degree Celsius
@@ -29,6 +29,8 @@ int count;
 #endif
 
 // settings
+const int     COM_SPEED         = 9600;
+const int     MB_UID            = 1;
 const char   *WIFI_SSID         = "";
 const char   *WIFI_PASSWORD     = "";
 
@@ -57,8 +59,6 @@ int           i_values[3]       = {0, 0, 0};
 
 // other constants
 const int     MAXADCVALUE       = 1024;
-const int     SERIALSPEED       = 9600;
-const int     MB_UID            = 1;
 const long    INTERVAL          = 10000;
 const String  SWNAME            = "MM17D";
 const String  SWVERSION         = "0.1";
@@ -79,16 +79,16 @@ const String MSG[35]            =
   /*  1 */  "MM17D * T/RH measuring device",
   /*  2 */  "Copyright (C) 2023 Pozsar Zsolt",
   /*  3 */  "http://www.pozsarzs.hu/",
-  /*  4 */  "",
-  /*  5 */  "* Initializing GPIO ports...",
-  /*  6 */  "* Initializing sensors...",
+  /*  4 */  "Starting device...",
+  /*  5 */  "* Initializing GPIO ports",
+  /*  6 */  "* Initializing sensors",
   /*  7 */  "* Connecting to wireless network",
   /*  8 */  "done",
   /*  9 */  "  my MAC address:         ",
   /* 10 */  "  my IP address:          ",
   /* 11 */  "  subnet mask:            ",
   /* 12 */  "  gateway IP address:     ",
-  /* 13 */  "* Starting webserver...",
+  /* 13 */  "* Starting webserver",
   /* 14 */  "* HTTP query received ",
   /* 15 */  "* Modbus/TCP query received ",
   /* 16 */  "* Modbus/RTU query received ",
@@ -96,16 +96,16 @@ const String MSG[35]            =
   /* 18 */  "* E02: Failed to read PT100!",
   /* 19 */  "* E03:",
   /* 20 */  "* E04:",
-  /* 21 */  "* Attention! The serial console is off!",
-  /* 22 */  "* Starting Modbus/TCP server...",
-  /* 23 */  "* Starting Modbus/RTU slave...",
+  /* 21 */  "* Ready, the serial console is off.",
+  /* 22 */  "* Starting Modbus/TCP server",
+  /* 23 */  "* Starting Modbus/RTU slave",
   /* 24 */  "  my Modbus UID:          ",
   /* 25 */  "* Green",
   /* 26 */  "* Red",
   /* 27 */  " LED is switched ",
   /* 28 */  "on.",
   /* 29 */  "off.",
-  /* 30 */  "  serial port parameters: ",
+  /* 30 */  "serial port speed: ",
   /* 31 */  "  get summary page",
   /* 32 */  "  get help page",
   /* 33 */  "  get log page",
@@ -346,12 +346,14 @@ void loop(void)
 void setup(void)
 {
   // set serial port
-  Serial.begin(SERIALSPEED);
+  Serial.begin(COM_SPEED, SERIAL_8N1);
   // write program information
   Serial.println("");
   Serial.println("");
   Serial.println(MSG[1] + " * v" + SWVERSION );
   Serial.println(MSG[2] +  " <" + MSG[3] + ">");
+  writetosyslog(4);
+  Serial.println(MSG[4]);
   // initialize GPIO ports
   writetosyslog(5);
   Serial.println(MSG[5]);
@@ -388,18 +390,15 @@ void setup(void)
   Serial.println(MSG[12] + WiFi.gatewayIP().toString());
   // start Modbus/TCP server
   writetosyslog(22);
-  Serial.print(MSG[22]);
+  Serial.println(MSG[22]);
   mbtcp.server();
-  Serial.println(MSG[8]);
   // start Modbus/RTU slave
   writetosyslog(23);
-  Serial.print(MSG[23]);
+  Serial.println(MSG[23]);
   mbrtu.begin(&Serial);
-  mbrtu.setBaudrate(SERIALSPEED);
+  mbrtu.setBaudrate(COM_SPEED);
   mbrtu.slave(MB_UID);
-  Serial.println(MSG[8]);
   Serial.println(MSG[24] + String(MB_UID));
-  Serial.println(MSG[30] + String(SERIALSPEED) + " bps, 8N1");
   // set Modbus registers
   for (int i = 0; i < 3; i++)
   {
@@ -415,7 +414,7 @@ void setup(void)
   mbrtu.onGetIreg(0, modbusrtuquery, 3);
   // start webserver
   writetosyslog(13);
-  Serial.print(MSG[13]);
+  Serial.println(MSG[13]);
   server.onNotFound(handleNotFound);
   // help page
   server.on("/", []()
@@ -432,7 +431,7 @@ void setup(void)
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
       "    " + MSG[24] + String(MB_UID) + "<br>\n"
-      "    " + MSG[30] + String(SERIALSPEED) + " bps, 8N1<br>\n"
+      "    " + MSG[30] + String(COM_SPEED) + " baud<br>\n"
       "    software version: v" + SWVERSION + "<br>\n"
       "    <hr>\n"
       "    <h3>Information and data access</h3>\n"
@@ -522,7 +521,7 @@ void setup(void)
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
       "    " + MSG[24] + String(MB_UID) + "<br>\n"
-      "    " + MSG[30] + String(SERIALSPEED) + " bps, 8N1<br>\n"
+      "    " + MSG[30] + String(COM_SPEED) + " baud<br>\n"
       "    software version: v" + SWVERSION + "<br>\n"
       "    <hr>\n"
       "    <h3>Measured values</h3>\n"
@@ -570,7 +569,7 @@ void setup(void)
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
       "    " + MSG[24] + String(MB_UID) + "<br>\n"
-      "    " + MSG[30] + String(SERIALSPEED) + " bps, 8N1<br>\n"
+      "    " + MSG[30] + String(COM_SPEED) + " baud<br>\n"
       "    software version: v" + SWVERSION + "<br>\n"
       "    <hr>\n"
       "    <h3>Last 64 lines of system log:</h3>\n"
@@ -671,7 +670,6 @@ void setup(void)
     delay(100);
   });
   server.begin();
-  Serial.println(MSG[8]);
   Serial.println(MSG[21]);
   beep(1);
 }

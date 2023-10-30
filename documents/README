@@ -24,6 +24,8 @@ Requirements:
 In the 'mm17d.ino' file:
 
   // settings
+  const int     COM_SPEED         = 9600;
+  const int     MB_UID            = 1;
   const char   *WIFI_SSID         = "";
   const char   *WIFI_PASSWORD     = "";
 
@@ -32,21 +34,20 @@ In the 'mm17d.ino' file:
 The serial console shuts down at the end of the startup process to free
 the serial port for Modbus/RTu communication.
 
-  MM17D * T/RH measuring device * v0.1
   Copyright (C) 2023 Pozsar Zsolt <http://www.pozsarzs.hu/>
-  * Initializing GPIO ports...
-  * Initializing sensors...
-  * Connecting to wireless network.......done
+  Starting device...
+  * Initializing GPIO ports
+  * Initializing sensors
+  * Connecting to wireless network................done
     my MAC address:         80:7D:3A:5D:53:84
     my IP address:          192.168.0.103
     subnet mask:            255.255.255.0
     gateway IP address:     192.168.0.1
-  * Starting Modbus/TCP server...done
-  * Starting Modbus/RTU slave...done
+  * Starting Modbus/TCP server
+  * Starting Modbus/RTU slave
     my Modbus UID:          1
-    serial port parameters: 9600 bps, 8N1
-  * Starting webserver...done
-  * Attention! The serial console is off!
+  * Starting webserver
+  * Ready, the serial console is off.
 
 4. Information and data retrieving
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -101,13 +102,13 @@ JSON:                      XML:
 
 5. Get installer package
 ~~~~~~~~~~~~~~~~~~~~~~~~
-a. Visit homepage (see later) to download package:
+Visit homepage (see later) to download package:
 
   architecture  operation system        filename
   --------------------------------------------------------
   (all)         (source code)           mm17d-sw-0.1.tar.gz
 
-b. Download from Github
+Download from Github
 
   $ git clone https://github.com/pozsarzs/mm17d-sw.git
 
