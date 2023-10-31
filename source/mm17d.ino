@@ -18,6 +18,7 @@
 #include <WiFiClient.h>
 #include <ModbusIP_ESP8266.h>
 #include <ModbusRTU.h>
+#include <StringSplitter.h> // Note: Change MAX = 5 to MAX = 6 in StringSplitter.h.
 
 #define       TYP_SENSOR1 DHT11
 //#define       PT100_SIMULATION
@@ -43,27 +44,23 @@ const int     PRT_DO_LEDYELLOW  = 4;
 const int     PRT_DI_SENSOR1    = 12;
 const int     PRT_AI_SENSOR2    = 0;
 
-// output data
-const String  I_DESC[3]         = {"internal relative humidity in %",
-                                   "internal temperature in &deg;C",
-                                   "external temperature in &deg;C"
-                                  };
-const String  B_DESC[3]         = {"status of the green LED",
-                                   "status of the yellow LED",
-                                   "status of the red LED"
-                                  };
-const String  I_NAME[3]         = {"rhint", "tint", "text"};
-const String  B_NAME[3]         = {"ledg", "ledy", "ledr"};
-boolean       b_values[3]       = {false, false, false};
-int           i_values[3]       = {0, 0, 0};
+// name of the Modbus registers
+const String  DI_NAME[3]        = {"ledg", "ledy", "ledr"};
+const String  IR_NAME[3]        = {"rhint", "tint", "text"};
+const String  HR_NAME[6]        = {"name", "version", "mac_address", "ip_address", "modbus_uid", "com_speed"};
 
 // other constants
 const int     MAXADCVALUE       = 1024;
 const long    INTERVAL          = 10000;
 const String  SWNAME            = "MM17D";
-const String  SWVERSION         = "0.1";
+const String  SWVERSION         = "0.1.0";
 const String  TEXTHTML          = "text/html";
 const String  TEXTPLAIN         = "text/plain";
+
+// Modbus registers
+boolean       di_values[3]      = {};
+int           ir_values[3]      = {};
+int           hr_values[26]     = {};
 
 // other variables
 int           syslog[64]        = {};
@@ -73,12 +70,12 @@ String        mymacaddress;
 unsigned long prevtime          = 0;
 
 // messages
-const String MSG[35]            =
+const String MSG[29]            =
 {
   /*  0 */  "",
   /*  1 */  "MM17D * T/RH measuring device",
   /*  2 */  "Copyright (C) 2023 Pozsar Zsolt",
-  /*  3 */  "http://www.pozsarzs.hu/",
+  /*  3 */  "  software version:       ",
   /*  4 */  "Starting device...",
   /*  5 */  "* Initializing GPIO ports",
   /*  6 */  "* Initializing sensors",
@@ -88,28 +85,34 @@ const String MSG[35]            =
   /* 10 */  "  my IP address:          ",
   /* 11 */  "  subnet mask:            ",
   /* 12 */  "  gateway IP address:     ",
-  /* 13 */  "* Starting webserver",
-  /* 14 */  "* HTTP query received ",
-  /* 15 */  "* Modbus/TCP query received ",
-  /* 16 */  "* Modbus/RTU query received ",
-  /* 17 */  "* E01: Failed to read T/RH sensor!",
-  /* 18 */  "* E02: Failed to read PT100!",
-  /* 19 */  "* E03:",
-  /* 20 */  "* E04:",
-  /* 21 */  "* Ready, the serial console is off.",
-  /* 22 */  "* Starting Modbus/TCP server",
-  /* 23 */  "* Starting Modbus/RTU slave",
-  /* 24 */  "  my Modbus UID:          ",
-  /* 25 */  "* Green",
-  /* 26 */  "* Red",
-  /* 27 */  " LED is switched ",
-  /* 28 */  "on.",
-  /* 29 */  "off.",
-  /* 30 */  "serial port speed: ",
-  /* 31 */  "  get summary page",
-  /* 32 */  "  get help page",
-  /* 33 */  "  get log page",
-  /* 34 */  "  get all measured data"
+  /* 13 */  "* Starting Modbus/TCP server",
+  /* 14 */  "* Starting Modbus/RTU slave",
+  /* 15 */  "  my Modbus UID:          ",
+  /* 16 */  "  serial port speed:      ",
+  /* 17 */  "* Starting webserver",
+  /* 18 */  "* Ready, the serial console is off.",
+  /* 19 */  "* Modbus query received ",
+  /* 20 */  "* HTTP query received ",
+  /* 21 */  "  get help page",
+  /* 22 */  "  get summary page",
+  /* 23 */  "  get log page",
+  /* 24 */  "  get all data",
+  /* 25 */  "* E01: Failed to read T/RH sensor!",
+  /* 26 */  "* E02: Failed to read PT100!",
+  /* 27 */  "* E03: No such page!",
+  /* 28 */  "http://www.pozsarzs.hu"
+};
+const String DI_DESC[3]         =
+{
+  /*  1 */  "status of the green LED",
+  /*  2 */  "status of the yellow LED",
+  /*  3 */  "status of the red LED"
+};
+const String  IR_DESC[3]        =
+{
+  /*  1 */  "internal relative humidity in %",
+  /*  2 */  "internal temperature in &deg;C",
+  /*  3 */  "external temperature in &deg;C"
 };
 
 DHT dht(PRT_DI_SENSOR1, TYP_SENSOR1, 11);
@@ -138,6 +141,72 @@ void writetosyslog(int msgnum)
   }
 }
 
+// convert hex string to byte
+byte hstol(String recv) {
+  return strtol(recv.c_str(), NULL, 16);
+}
+
+// fill holding registers with configuration data
+void fillholdingregisters()
+{
+  int    itemCount;
+  String s;
+  // name
+  s = SWNAME;
+  while (s.length() < 8)
+  {
+    s = char(0x00) + s;
+  }
+  for (int i = 0; i < 9; i++)
+  {
+    hr_values[i] = char(s[i]);
+  }
+  // version
+  StringSplitter *splitter1 = new StringSplitter(SWVERSION, '.', 3);
+  itemCount = splitter1->getItemCount();
+  for (int i = 0; i < itemCount; i++)
+  {
+    String item = splitter1->getItemAtIndex(i);
+    hr_values[8 + i] = item.toInt();
+  }
+  delete splitter1;
+  // MAC-address
+  StringSplitter *splitter2 = new StringSplitter(mymacaddress, ':', 6);
+  itemCount = splitter2->getItemCount();
+  for (int i = 0; i < itemCount; i++)
+  {
+    String item = splitter2->getItemAtIndex(i);
+    hr_values[11 + i] = hstol(item);
+  }
+  delete splitter2;
+  // IP-address
+  StringSplitter *splitter3 = new StringSplitter(myipaddress, '.', 4);
+  itemCount = splitter3->getItemCount();
+  for (int i = 0; i < itemCount; i++)
+  {
+    String item = splitter3->getItemAtIndex(i);
+    hr_values[17 + i] = item.toInt();
+  }
+  delete splitter3;
+  // MB UID
+  hr_values[21] = MB_UID;
+  // serial speed
+  s = String(COM_SPEED);
+  while (s.length() < 6)
+  {
+    s = char(0x00) + s;
+  }
+  for (int i = 0; i < 7; i++)
+  {
+    hr_values[22 + i] = char(s[i]);
+  }
+  for (int i = 0; i < 29; i++)
+  {
+    mbtcp.Hreg(i, hr_values[i]);
+    mbrtu.Hreg(i, hr_values[i]);
+  }
+}
+
 // switch on/off blue LED
 void blueled(boolean b)
 {
@@ -147,28 +216,28 @@ void blueled(boolean b)
 // switch on/off green LED
 void greenled(boolean b)
 {
-  digitalWrite(PRT_DO_LEDGREEN, b);
-  b_values[0] = b;
-  mbtcp.Ists(0, b_values[0]);
-  mbrtu.Ists(0, b_values[0]);
+  di_values[0] = b;
+  mbtcp.Ists(0, di_values[0]);
+  mbrtu.Ists(0, di_values[0]);
+  digitalWrite(PRT_DO_LEDGREEN, di_values[0]);
 }
 
 // switch on/off yellow LED
 void yellowled(boolean b)
 {
-  digitalWrite(PRT_DO_LEDYELLOW, b);
-  b_values[1] = b;
-  mbtcp.Ists(1, b_values[1]);
-  mbrtu.Ists(1, b_values[1]);
+  di_values[1] = b;
+  mbtcp.Ists(1, di_values[1]);
+  mbrtu.Ists(1, di_values[1]);
+  digitalWrite(PRT_DO_LEDYELLOW, di_values[1]);
 }
 
 // switch on/off red LED
 void redled(boolean b)
 {
-  digitalWrite(PRT_DO_LEDRED, b);
-  b_values[2] = b;
-  mbtcp.Ists(2, b_values[2]);
-  mbrtu.Ists(2, b_values[2]);
+  di_values[2] = b;
+  mbtcp.Ists(2, di_values[2]);
+  mbrtu.Ists(2, di_values[2]);
+  digitalWrite(PRT_DO_LEDRED, di_values[2]);
 }
 
 // blinking blue LED
@@ -231,16 +300,16 @@ int measureinttemphum()
   if (isnan(fh) || isnan(ft))
   {
     beep(1);
-    writetosyslog(17);
+    writetosyslog(25);
     return 0;
   } else
   {
-    i_values[0] = (int)fh;
-    i_values[1] = (int)ft;
-    mbtcp.Ireg(0, i_values[0]);
-    mbtcp.Ireg(1, i_values[1]);
-    mbrtu.Ireg(0, i_values[0]);
-    mbrtu.Ireg(1, i_values[1]);
+    ir_values[0] = (int)fh;
+    ir_values[1] = (int)ft;
+    mbtcp.Ireg(0, ir_values[0]);
+    mbtcp.Ireg(1, ir_values[1]);
+    mbrtu.Ireg(0, ir_values[0]);
+    mbrtu.Ireg(1, ir_values[1]);
     return 1;
   }
 }
@@ -263,7 +332,6 @@ boolean measureexttemp()
   const float U0 = 5000; // mV
 
   u1 = analogRead(PRT_AI_SENSOR2);
-
 #ifdef PT100_SIMULATION
   u1 = U0 * (RPT[count] / (R1 + RPT[count]));
   Serial.println("Tpt100: " + String(int(TPT[count])) + " °C");
@@ -271,55 +339,44 @@ boolean measureexttemp()
   Serial.println("Uadc:   " + String(int(u1)) + " mV");
   if (count < 2) count++ else count = 0;
 #endif
-
   if ((u1 == 0) || (u1 == MAXADCVALUE))
   {
     beep(1);
-    writetosyslog(18);
+    writetosyslog(26);
     return false;
   } else
   {
     r2 = u1 / ((U0 - u1) / R1);
     t = (((((r2 * C4 + C3) * r2 + C2) * r2 + C1) * r2) / ((((r2 * C7 + C6) * r2 + C5) * r2) + 1)) + C0;
-
 #ifdef PT100_SIMULATION
     Serial.println("Tcalc:  " + String(int(t)) + " °C\n");
 #endif
-
-    i_values[2] = (int)t;
-    mbtcp.Ireg(2, i_values[2]);
-    mbrtu.Ireg(2, i_values[2]);
+    ir_values[2] = (int)t;
+    mbtcp.Ireg(2, ir_values[2]);
+    mbrtu.Ireg(2, ir_values[2]);
     return true;
   }
+}
+
+// blink blue LED and write to log
+uint16_t modbusquery(TRegister* reg, uint16_t val)
+{
+  blinkblueled();
+  writetosyslog(19);
+  return val;
 }
 
 // blink blue LED and write to log
 void httpquery()
 {
   blinkblueled();
-  writetosyslog(14);
-}
-
-// blink blue LED and write to log
-uint16_t modbustcpquery(TRegister* reg, uint16_t val)
-{
-  blinkblueled();
-  writetosyslog(15);
-  return val;
-}
-
-// blink blue LED and write to log
-uint16_t modbusrtuquery(TRegister* reg, uint16_t val)
-{
-  blinkblueled();
-  writetosyslog(16);
-  return val;
+  writetosyslog(20);
 }
 
 // error 404 page
 void handleNotFound()
 {
-  server.send(404, TEXTPLAIN, MSG[19]);
+  server.send(404, TEXTPLAIN, MSG[27]);
 }
 
 // loop function
@@ -350,8 +407,9 @@ void setup(void)
   // write program information
   Serial.println("");
   Serial.println("");
-  Serial.println(MSG[1] + " * v" + SWVERSION );
-  Serial.println(MSG[2] +  " <" + MSG[3] + ">");
+  Serial.println(MSG[1]);
+  Serial.println(MSG[2]);
+  Serial.println(MSG[3] + "v" + SWVERSION );
   writetosyslog(4);
   Serial.println(MSG[4]);
   // initialize GPIO ports
@@ -389,37 +447,38 @@ void setup(void)
   Serial.println(MSG[11] + WiFi.subnetMask().toString());
   Serial.println(MSG[12] + WiFi.gatewayIP().toString());
   // start Modbus/TCP server
-  writetosyslog(22);
-  Serial.println(MSG[22]);
+  writetosyslog(13);
+  Serial.println(MSG[13]);
   mbtcp.server();
   // start Modbus/RTU slave
-  writetosyslog(23);
-  Serial.println(MSG[23]);
+  writetosyslog(14);
+  Serial.println(MSG[14]);
   mbrtu.begin(&Serial);
   mbrtu.setBaudrate(COM_SPEED);
   mbrtu.slave(MB_UID);
-  Serial.println(MSG[24] + String(MB_UID));
+  Serial.println(MSG[15] + String(MB_UID));
+  Serial.println(MSG[16] + String(COM_SPEED));
   // set Modbus registers
-  for (int i = 0; i < 3; i++)
-  {
-    mbtcp.addIsts(i, b_values[i]);
-    mbrtu.addIsts(i, b_values[i]);
-    mbtcp.addIreg(i, i_values[i]);
-    mbrtu.addIreg(i, i_values[i]);
-  }
+  mbtcp.addIsts(0, false, 3);
+  mbrtu.addIsts(0, false, 3);
+  mbtcp.addIreg(0, 0, 3);
+  mbrtu.addIreg(0, 0, 3);
+  mbtcp.addHreg(0, 0, 28);
+  mbrtu.addHreg(0, 0, 28);
   // set Modbus callback
-  mbtcp.onGetIsts(0, modbustcpquery, 3);
-  mbtcp.onGetIreg(0, modbustcpquery, 3);
-  mbrtu.onGetIsts(0, modbustcpquery, 3);
-  mbrtu.onGetIreg(0, modbusrtuquery, 3);
+  mbrtu.onGetIsts(0, modbusquery, 1);
+  mbrtu.onGetIreg(0, modbusquery, 1);
+  mbrtu.onGetHreg(0, modbusquery, 1);
+  // fill Modbus holding registers
+  fillholdingregisters();
   // start webserver
-  writetosyslog(13);
-  Serial.println(MSG[13]);
+  writetosyslog(17);
+  Serial.println(MSG[17]);
   server.onNotFound(handleNotFound);
   // help page
   server.on("/", []()
   {
-    writetosyslog(32);
+    writetosyslog(21);
     line =
       "<html>\n"
       "  <head>\n"
@@ -430,9 +489,9 @@ void setup(void)
       "    <br>\n"
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[24] + String(MB_UID) + "<br>\n"
-      "    " + MSG[30] + String(COM_SPEED) + " baud<br>\n"
-      "    software version: v" + SWVERSION + "<br>\n"
+      "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
+      "    " + MSG[15] + String(MB_UID) + "<br>\n"
+      "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
       "    <hr>\n"
       "    <h3>Information and data access</h3>\n"
       "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
@@ -481,7 +540,7 @@ void setup(void)
       line +=
         "      <tr>\n"
         "        <td>" + String(i + 10001) + "</td>\n"
-        "        <td>" + B_DESC[i] + "</td>\n"
+        "        <td>" + DI_DESC[i] + "</td>\n"
         "        <td>bit</td>\n"
         "      </tr>\n";
     }
@@ -490,15 +549,45 @@ void setup(void)
       line +=
         "      <tr>\n"
         "        <td>" + String(i + 30001) + "</td>\n"
-        "        <td>" + I_DESC[i] + "</td>\n"
+        "        <td>" + IR_DESC[i] + "</td>\n"
         "        <td>integer</td>\n"
         "      </tr>\n";
     }
     line +=
+      "      <tr>\n"
+      "        <td>40001-40008</td>\n"
+      "        <td>device name</td>\n"
+      "        <td>8 ASCII coded char</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>40009-40011</td>\n"
+      "        <td>software version</td>\n"
+      "        <td>3 byte</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>40012-40017</td>\n"
+      "        <td>MAC address</td>\n"
+      "        <td>6 byte</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>40018-40021</td>\n"
+      "        <td>IP address</td>\n"
+      "        <td>4 byte</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>40022</td>\n"
+      "        <td>Modbus UID</td>\n"
+      "        <td>1 byte</td>\n"
+      "      </tr>\n"
+      "      <tr>\n"
+      "        <td>40023-40028</td>\n"
+      "        <td>serial port speed</td>\n"
+      "        <td>6 ASCII coded char</td>\n"
+      "      </tr>\n"
       "    </table>\n"
       "    <br>\n"
       "    <hr>\n"
-      "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a></center>\n"
+      "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
       "    <br>\n"
       "  </body>\n"
       "</html>\n";
@@ -509,7 +598,7 @@ void setup(void)
   // summary page
   server.on("/summary", []()
   {
-    writetosyslog(31);
+    writetosyslog(22);
     line =
       "<html>\n"
       "  <head>\n"
@@ -520,33 +609,33 @@ void setup(void)
       "    <br>\n"
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[24] + String(MB_UID) + "<br>\n"
-      "    " + MSG[30] + String(COM_SPEED) + " baud<br>\n"
-      "    software version: v" + SWVERSION + "<br>\n"
+      "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
+      "    " + MSG[15] + String(MB_UID) + "<br>\n"
+      "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
       "    <hr>\n"
-      "    <h3>Measured values</h3>\n"
+      "    <h3>All measured values and status</h3>\n"
       "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n";
     for (int i = 0; i < 3; i++)
     {
       line +=
         "      <tr>\n"
-        "        <td>" + I_DESC[i] + "</td>\n"
-        "        <td align=\"right\">" + String(i_values[i]) + "</td>\n"
+        "        <td>" + IR_DESC[i] + "</td>\n"
+        "        <td align=\"right\">" + String(ir_values[i]) + "</td>\n"
         "      </tr>\n";
     }
     for (int i = 0; i < 3; i++)
     {
       line +=
         "      <tr>\n"
-        "        <td>" + B_DESC[i] + "</td>\n"
-        "        <td align=\"right\">" + String(b_values[i]) + "</td>\n"
+        "        <td>" + DI_DESC[i] + "</td>\n"
+        "        <td align=\"right\">" + String(di_values[i]) + "</td>\n"
         "      </tr>\n";
     }
     line +=
       "    </table>\n"
       "    <br>\n"
       "    <hr>\n"
-      "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a></center>\n"
+      "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
       "    <br>\n"
       "  </body>\n"
       "</html>\n";
@@ -557,7 +646,7 @@ void setup(void)
   // log page
   server.on("/log", []()
   {
-    writetosyslog(33);
+    writetosyslog(23);
     line =
       "<html>\n"
       "  <head>\n"
@@ -568,9 +657,9 @@ void setup(void)
       "    <br>\n"
       "    " + MSG[9] + mymacaddress + "<br>\n"
       "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[24] + String(MB_UID) + "<br>\n"
-      "    " + MSG[30] + String(COM_SPEED) + " baud<br>\n"
-      "    software version: v" + SWVERSION + "<br>\n"
+      "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
+      "    " + MSG[15] + String(MB_UID) + "<br>\n"
+      "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
       "    <hr>\n"
       "    <h3>Last 64 lines of system log:</h3>\n"
       "    <table border=\"0\" cellpadding=\"3\" cellspacing=\"0\">\n";
@@ -581,7 +670,7 @@ void setup(void)
       "    </table>\n"
       "    <br>\n"
       "    <hr>\n"
-      "    <center>" + MSG[2] + " <a href=\"" + MSG[3] + "\">" + MSG[3] + "</a></center>\n"
+      "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
       "    <br>\n"
       "  </body>\n"
       "</html>\n";
@@ -592,13 +681,17 @@ void setup(void)
   // get all measured data in CSV format
   server.on("/get/csv", []()
   {
-    writetosyslog(34);
-    line = "\"name\",\"" + SWNAME + "\"\n"
-           "\"version\",\"" + SWVERSION + "\"\n";
+    writetosyslog(24);
+    line = "\"" + HR_NAME[0] + "\",\"" + SWNAME + "\"\n"
+           "\"" + HR_NAME[1] + "\",\"" + SWVERSION + "\"\n"
+           "\"" + HR_NAME[2] + "\",\"" + mymacaddress + "\"\n"
+           "\"" + HR_NAME[3] + "\",\"" + myipaddress + "\"\n"
+           "\"" + HR_NAME[4] + "\",\"" + String(MB_UID) + "\"\n"
+           "\"" + HR_NAME[5] + "\",\"" + String(COM_SPEED) + "\"\n";
     for (int i = 0; i < 3; i++)
-      line = line + "\"" + I_NAME[i] + "\",\"" + String(i_values[i]) + "\"\n";
+      line = line + "\"" + IR_NAME[i] + "\",\"" + String(ir_values[i]) + "\"\n";
     for (int i = 0; i < 3; i++)
-      line = line + "\"" + B_NAME[i] + "\",\"" + String(b_values[i]) + "\"\n";
+      line = line + "\"" + DI_NAME[i] + "\",\"" + String(di_values[i]) + "\"\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -606,14 +699,22 @@ void setup(void)
   // get all measured values in JSON format
   server.on("/get/json", []()
   {
-    writetosyslog(34);
+    writetosyslog(24);
     line = "{\n"
-           "  \"name\": \"" + SWNAME + "\",\n"
-           "  \"version\": \"" + SWVERSION + "\",\n"
+           "  \"software\": {\n"
+           "    \"" + HR_NAME[0] + "\": \"" + SWNAME + "\",\n"
+           "    \"" + HR_NAME[1] + "\": \"" + SWVERSION + "\"\n"
+           "  },\n"
+           "  \"hardware\": {\n"
+           "    \"" + HR_NAME[2] + "\": \"" + mymacaddress + "\",\n"
+           "    \"" + HR_NAME[3] + "\": \"" + myipaddress + "\",\n"
+           "    \"" + HR_NAME[4] + "\": \"" + String(MB_UID) + "\",\n"
+           "    \"" + HR_NAME[5] + "\": \"" + String(COM_SPEED) + "\"\n"
+           "  },\n"
            "  \"integer\": {\n";
     for (int i = 0; i < 3; i++)
     {
-      line += "    \"" + I_NAME[i] + "\": \"" + String(i_values[i]);
+      line += "    \"" + IR_NAME[i] + "\": \"" + String(ir_values[i]);
       if (i < 2 ) line = line + "\",\n"; else  line = line + "\"\n";
     }
     line +=
@@ -621,7 +722,7 @@ void setup(void)
       "  \"bit\": {\n";
     for (int i = 0; i < 3; i++)
     {
-      line += "    \"" + B_NAME[i] + "\": \"" + String(b_values[i]);
+      line += "    \"" + DI_NAME[i] + "\": \"" + String(di_values[i]);
       if (i < 2 ) line = line + "\",\n"; else  line = line + "\"\n";
     }
     line +=
@@ -634,13 +735,17 @@ void setup(void)
   // get all measured data in TXT format
   server.on("/get/txt", []()
   {
-    writetosyslog(34);
+    writetosyslog(24);
     line = SWNAME + "\n" +
-           SWVERSION + "\n";
+           SWVERSION + "\n" +
+           mymacaddress + "\n" +
+           myipaddress + "\n" + \
+           String(MB_UID) + "\n" + \
+           String(COM_SPEED) + "\n";
     for (int i = 0; i < 3; i++)
-      line = line + String(i_values[i]) + "\n";
+      line = line + String(ir_values[i]) + "\n";
     for (int i = 0; i < 3; i++)
-      line = line + String(b_values[i]) + "\n";
+      line = line + String(di_values[i]) + "\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -648,20 +753,26 @@ void setup(void)
   // get all measured values in XML format
   server.on("/get/xml", []()
   {
-    writetosyslog(34);
+    writetosyslog(24);
     line = "<xml>\n"
            "  <software>\n"
-           "    <name>" + SWNAME + "</name>\n"
-           "    <version>" + SWVERSION + "</version>\n"
+           "    <" + HR_NAME[0] + ">" + SWNAME + "</" + HR_NAME[0] + ">\n"
+           "    <" + HR_NAME[1] + ">" + SWVERSION + "</" + HR_NAME[1] + ">\n"
            "  </software>\n"
+           "  <hardware>\n"
+           "    <" + HR_NAME[2] + ">" + mymacaddress + "</" + HR_NAME[2] + ">\n"
+           "    <" + HR_NAME[3] + ">" + myipaddress + "</" + HR_NAME[3] + ">\n"
+           "    <" + HR_NAME[4] + ">" + String(MB_UID) + "</" + HR_NAME[4] + ">\n"
+           "    <" + HR_NAME[5] + ">" + String(COM_SPEED) + "</" + HR_NAME[5] + ">\n"
+           "  </hardware>\n"
            "  <integer>\n";
     for (int i = 0; i < 3; i++)
-      line += "    <" + I_NAME[i] + ">" + String(i_values[i]) + "</" + I_NAME[i] + ">\n";
+      line += "    <" + IR_NAME[i] + ">" + String(ir_values[i]) + "</" + IR_NAME[i] + ">\n";
     line +=
       "  </integer>\n"
       "  <bit>\n";
     for (int i = 0; i < 3; i++)
-      line += "    <" + B_NAME[i] + ">" + String(b_values[i]) + "</" + B_NAME[i] + ">\n";
+      line += "    <" + DI_NAME[i] + ">" + String(di_values[i]) + "</" + DI_NAME[i] + ">\n";
     line +=
       "  </bit>\n"
       "</xml>";
@@ -670,6 +781,6 @@ void setup(void)
     delay(100);
   });
   server.begin();
-  Serial.println(MSG[21]);
+  Serial.println(MSG[18]);
   beep(1);
 }

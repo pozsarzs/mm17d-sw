@@ -3,12 +3,13 @@ Operating program for MM17D device
 
 1. About software
 ~~~~~~~~~~~~~~~~~
-  It is an internal software for RH/T measuring device. This device can measure
+It is an internal software for RH/T measuring device. This device can measure
 internal and external temperature and internal humidity.
-  It has a web interface. The measured data can be queried via WLAN using HTTP in
+
+It has a web interface. The measured data can be queried via WLAN using HTTP in
 four formats (CSV, JSON, TXT and XML) and using Modbus/TCP. Can also be queried
-via RS-232 TTL port using Modbus/RTU protocol. Serial port parameters for serial
-console and Modbus/RTu connection: 9600 bps, 8N1.
+via RS-232 TTL port using Modbus/RTU protocol. Default serial port parameters for
+serial console and Modbus/RTU connection: 9600 bps, 8N1.
 
 Requirements:
   Hardware: ESP8266 Huzzah Breakout microcontroller
@@ -18,6 +19,7 @@ Requirements:
               Alexander Emelianov
             - ESP8266WebServer library v1.0 by Ivan Grokhotkov
             - ESP8266WiFi library v1.0 by Ivan Grokhotkov
+            - StringSplitter library v1.0.0 by Harsha Alva
 
 2. Settings
 ~~~~~~~~~~~
@@ -31,8 +33,8 @@ In the 'mm17d.ino' file:
 
 3. Serial console output
 ~~~~~~~~~~~~~~~~~~~~~~~~
-The serial console shuts down at the end of the startup process to free
-the serial port for Modbus/RTu communication.
+The serial console shuts down at the end of the startup process to free the
+serial port for Modbus/RTu communication.
 
   Copyright (C) 2023 Pozsar Zsolt <http://www.pozsarzs.hu/>
   Starting device...
@@ -51,54 +53,110 @@ the serial port for Modbus/RTu communication.
 
 4. Information and data retrieving
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-HTML information pages:
+a. HTML information pages:
   http://../          help                                     text/html
   http://../summary   summary                                  text/html
   http://../log       log                                      text/html
 
-Data access with HTTP:
+b. Data access with HTTP:
   http://../get/csv   all values and status in CSV format      text/plain
   http://../get/json  all values and status in JSON format     text/plain
   http://../get/txt   Get all measured values in TXT format    text/plain
   http://../get/xml   Get all measured values in XML format    text/plain
 
-Data access with Modbus:
+  Output format:
+
+  CSV:
+    "name","MM17D"
+    "version","0.1.0"
+    "mac_address","80:7D:3A:5D:53:84"
+    "ip_address","192.168.0.103"
+    "modbus_uid","1"
+    "com_speed","9600"
+    "rhint","67"
+    "tint","19"
+    "text","-2"
+    "ledg","1"
+    "ledy","0"
+    "ledr","0"
+
+  TXT:
+    MM17D
+    0.1.0
+    80:7D:3A:5D:53:84
+    192.168.0.103
+    1
+    9600
+    67
+    19
+    -2
+    1
+    0
+    0
+
+  JSON:
+    "{
+      "software": {
+        "name": "MM17D",
+        "version": "0.1"
+      },
+      "hardware": {
+        "mac_address": "80:7D:3A:5D:53:84",
+        "ip_address": "192.168.0.103",
+        "modbus_uid": "1",
+        "com_speed": "9600"
+      },
+      "integer": {
+        "rhint": "67",
+        "tint": "20",
+        "text": "-2"
+      },
+      "bit": {
+        "ledg": "1",
+        "ledy": "0",
+        "ledr": "0"
+      }
+    }
+
+  XML:
+    <xml>
+      <software>
+        <name>MM17D</name>
+        <version>0.1</version>
+      </software>
+      <hardware>
+        <mac_address>80:7D:3A:5D:53:84</mac_address>
+        <ip_address>192.168.0.103</ip_address>
+        <modbus_uid>1</modbus_uid>
+        <com_speed>9600</com_speed>
+      </hardware>
+      <integer>
+        <rhint>67</rhint>
+        <tint>20</tint>
+        <text>-2</text>
+      </integer>
+      <bit>
+        <ledg>1</ledg>
+        <ledy>0</ledy>
+        <ledr>0</ledr>
+      </bit>
+    </xml>
+
+c. Data access with Modbus:
   10001               status of the green LED   (0/1: off/on)  bit
   10002               status of the yellow LED  (0/1: off/on)  bit
   10003               status of the red LED     (0/1: off/on)  bit
+
   30001               internal humidity in percent             integer
   30002               internal temperature in degree Celsius   integer
   30003               external temperature in degree Celsius   integer
 
-4. Output file format at HTTP retrieving
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-CSV:                       TXT:
-  "name","MM17D"             MM17D
-  "version","0.1"            0.1
-  "rhint","67"               67
-  "tint","19"                19
-  "text","-2"                -2
-  "ledg","1"                 1
-  "ledy","0"                 0
-  "ledr","0"                 0
-
-JSON:                      XML:
-  {                          <xml>
-    "name": "MM17D",            <software>
-    "version": "0.1",             <name>MM17D</name>
-    "integer": {                  <version>0.1</version>
-      "rhint": "67",            </software>
-      "tint": "20",             <integer>
-      "text": "-2"                <rhint>67</rhint>
-    },                            <tint>20</tint>
-    "bit": {                      <text>-2</text>
-      "ledg": "1",              </integer>
-      "ledy": "0",              <bit>
-      "ledr": "0"                 <ledg>1</ledg>
-    }                             <ledy>0</ledy>
-  }                               <ledr>0</ledr>
-                                </bit>
-                              </xml>
+  40001-40008         device name                8 ASCII coded char
+  40009-40011         software version                       3 byte
+  40012-40017         MAC address                            6 byte
+  40018-40021         IP address                             4 byte
+  40022               modbus UID                             1 byte
+  40023-40028         serial port speed          6 ASCII coded char
 
 5. Get installer package
 ~~~~~~~~~~~~~~~~~~~~~~~~
