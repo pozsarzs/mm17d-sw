@@ -36,13 +36,13 @@ const char   *WIFI_SSID         = "";
 const char   *WIFI_PASSWORD     = "";
 
 // ports
+const int     PRT_AI_SENSOR2    = 0;
+const int     PRT_DI_SENSOR1    = 12;
 const int     PRT_DO_BUZZER     = 14;
 const int     PRT_DO_LEDBLUE    = 2;
 const int     PRT_DO_LEDGREEN   = 0;
 const int     PRT_DO_LEDRED     = 5;
 const int     PRT_DO_LEDYELLOW  = 4;
-const int     PRT_DI_SENSOR1    = 12;
-const int     PRT_AI_SENSOR2    = 0;
 
 // name of the Modbus registers
 const String  DI_NAME[3]        = {"ledg", "ledy", "ledr"};
@@ -104,15 +104,15 @@ const String MSG[29]            =
 };
 const String DI_DESC[3]         =
 {
-  /*  1 */  "status of the green LED",
-  /*  2 */  "status of the yellow LED",
-  /*  3 */  "status of the red LED"
+  /*  0 */  "status of the green LED",
+  /*  1 */  "status of the yellow LED",
+  /*  2 */  "status of the red LED"
 };
 const String  IR_DESC[3]        =
 {
-  /*  1 */  "internal relative humidity in %",
-  /*  2 */  "internal temperature in &deg;C",
-  /*  3 */  "external temperature in &deg;C"
+  /*  0 */  "internal relative humidity in %",
+  /*  1 */  "internal temperature in &deg;C",
+  /*  2 */  "external temperature in &deg;C"
 };
 
 DHT dht(PRT_DI_SENSOR1, TYP_SENSOR1, 11);
@@ -665,7 +665,7 @@ void setup(void)
       "    <table border=\"0\" cellpadding=\"3\" cellspacing=\"0\">\n";
     for (int i = 0; i < 64; i++)
       if (syslog[i] > 0)
-        line = line + "      <tr><td><pre>" + String(i) + "</pre></td><td><pre>" + MSG[syslog[i]] + "</pre></td></tr>\n";
+        line += "      <tr><td><pre>" + String(i) + "</pre></td><td><pre>" + MSG[syslog[i]] + "</pre></td></tr>\n";
     line +=
       "    </table>\n"
       "    <br>\n"
@@ -689,9 +689,9 @@ void setup(void)
            "\"" + HR_NAME[4] + "\",\"" + String(MB_UID) + "\"\n"
            "\"" + HR_NAME[5] + "\",\"" + String(COM_SPEED) + "\"\n";
     for (int i = 0; i < 3; i++)
-      line = line + "\"" + IR_NAME[i] + "\",\"" + String(ir_values[i]) + "\"\n";
+      line += "\"" + IR_NAME[i] + "\",\"" + String(ir_values[i]) + "\"\n";
     for (int i = 0; i < 3; i++)
-      line = line + "\"" + DI_NAME[i] + "\",\"" + String(di_values[i]) + "\"\n";
+      line += "\"" + DI_NAME[i] + "\",\"" + String(di_values[i]) + "\"\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);
@@ -715,7 +715,7 @@ void setup(void)
     for (int i = 0; i < 3; i++)
     {
       line += "    \"" + IR_NAME[i] + "\": \"" + String(ir_values[i]);
-      if (i < 2 ) line = line + "\",\n"; else  line = line + "\"\n";
+      if (i < 2 ) line += "\",\n"; else  line += "\"\n";
     }
     line +=
       "  },\n"
@@ -723,7 +723,7 @@ void setup(void)
     for (int i = 0; i < 3; i++)
     {
       line += "    \"" + DI_NAME[i] + "\": \"" + String(di_values[i]);
-      if (i < 2 ) line = line + "\",\n"; else  line = line + "\"\n";
+      if (i < 2 ) line += "\",\n"; else  line += "\"\n";
     }
     line +=
       "  }\n"
@@ -743,9 +743,9 @@ void setup(void)
            String(MB_UID) + "\n" + \
            String(COM_SPEED) + "\n";
     for (int i = 0; i < 3; i++)
-      line = line + String(ir_values[i]) + "\n";
+      line += String(ir_values[i]) + "\n";
     for (int i = 0; i < 3; i++)
-      line = line + String(di_values[i]) + "\n";
+      line += String(di_values[i]) + "\n";
     server.send(200, TEXTPLAIN, line);
     httpquery();
     delay(100);

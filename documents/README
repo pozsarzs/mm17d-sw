@@ -101,7 +101,7 @@ b. Data access with HTTP:
     "{
       "software": {
         "name": "MM17D",
-        "version": "0.1"
+        "version": "0.1.0"
       },
       "hardware": {
         "mac_address": "80:7D:3A:5D:53:84",
@@ -125,7 +125,7 @@ b. Data access with HTTP:
     <xml>
       <software>
         <name>MM17D</name>
-        <version>0.1</version>
+        <version>0.1.0</version>
       </software>
       <hardware>
         <mac_address>80:7D:3A:5D:53:84</mac_address>
