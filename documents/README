@@ -34,13 +34,15 @@ In the 'mm17d.ino' file:
 3. Serial console output
 ~~~~~~~~~~~~~~~~~~~~~~~~
 The serial console shuts down at the end of the startup process to free the
-serial port for Modbus/RTu communication.
+serial port for Modbus/RTU communication.
 
-  Copyright (C) 2023 Pozsar Zsolt <http://www.pozsarzs.hu/>
+  MM17D * T/RH measuring device
+  Copyright (C) 2023 Pozsar Zsolt
+    software version:       v0.1.0
   Starting device...
   * Initializing GPIO ports
   * Initializing sensors
-  * Connecting to wireless network................done
+  * Connecting to wireless network.......done
     my MAC address:         80:7D:3A:5D:53:84
     my IP address:          192.168.0.103
     subnet mask:            255.255.255.0
@@ -48,6 +50,7 @@ serial port for Modbus/RTu communication.
   * Starting Modbus/TCP server
   * Starting Modbus/RTU slave
     my Modbus UID:          1
+    serial port speed:      9600
   * Starting webserver
   * Ready, the serial console is off.
 
@@ -61,8 +64,8 @@ a. HTML information pages:
 b. Data access with HTTP:
   http://../get/csv   all values and status in CSV format      text/plain
   http://../get/json  all values and status in JSON format     text/plain
-  http://../get/txt   Get all measured values in TXT format    text/plain
-  http://../get/xml   Get all measured values in XML format    text/plain
+  http://../get/txt   all measured values in TXT format        text/plain
+  http://../get/xml   all measured values in XML format        text/plain
 
   Output format:
 
