@@ -60,7 +60,7 @@ const String  TEXTPLAIN         = "text/plain";
 // Modbus registers
 boolean       di_values[3]      = {};
 int           ir_values[3]      = {};
-int           hr_values[26]     = {};
+int           hr_values[28]     = {};
 
 // other variables
 int           syslog[64]        = {};
@@ -196,11 +196,11 @@ void fillholdingregisters()
   {
     s = char(0x00) + s;
   }
-  for (int i = 0; i < 7; i++)
+  for (int i = 0; i < 6; i++)
   {
     hr_values[22 + i] = char(s[i]);
   }
-  for (int i = 0; i < 29; i++)
+  for (int i = 0; i < 27; i++)
   {
     mbtcp.Hreg(i, hr_values[i]);
     mbrtu.Hreg(i, hr_values[i]);
