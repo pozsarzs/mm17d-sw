@@ -56,6 +56,7 @@ const String  SWNAME            = "MM17D";
 const String  SWVERSION         = "0.1.0";
 const String  TEXTHTML          = "text/html";
 const String  TEXTPLAIN         = "text/plain";
+const String  DOCTYPEHTML       = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">";
 
 // Modbus registers
 boolean       di_values[3]      = {};
@@ -116,10 +117,11 @@ const String  IR_DESC[3]        =
 };
 
 DHT dht(PRT_DI_SENSOR1, TYP_SENSOR1, 11);
-ESP8266WebServer server(80);
+ESP8266WebServer httpserver(80);
 ModbusIP mbtcp;
 ModbusRTU mbrtu;
 
+// --- SYSTEM LOG ---
 // write a line to system log
 void writetosyslog(int msgnum)
 {
@@ -141,6 +143,7 @@ void writetosyslog(int msgnum)
   }
 }
 
+// --- STATIC MODBUS REGISTERS ---
 // convert hex string to byte
 byte hstol(String recv) {
   return strtol(recv.c_str(), NULL, 16);
@@ -154,13 +157,9 @@ void fillholdingregisters()
   // name
   s = SWNAME;
   while (s.length() < 8)
-  {
     s = char(0x00) + s;
-  }
   for (int i = 0; i < 9; i++)
-  {
     hr_values[i] = char(s[i]);
-  }
   // version
   StringSplitter *splitter1 = new StringSplitter(SWVERSION, '.', 3);
   itemCount = splitter1->getItemCount();
@@ -193,20 +192,17 @@ void fillholdingregisters()
   // serial speed
   s = String(COM_SPEED);
   while (s.length() < 6)
-  {
     s = char(0x00) + s;
-  }
   for (int i = 0; i < 6; i++)
-  {
     hr_values[22 + i] = char(s[i]);
-  }
-  for (int i = 0; i < 27; i++)
+  for (int i = 0; i < 28; i++)
   {
     mbtcp.Hreg(i, hr_values[i]);
     mbrtu.Hreg(i, hr_values[i]);
   }
 }
 
+// --- LEDS AND BUZZER ---
 // switch on/off blue LED
 void blueled(boolean b)
 {
@@ -291,6 +287,7 @@ void beep(int num)
   }
 }
 
+// --- MEASURING ---
 // measure internal temperature and relative humidity
 int measureinttemphum()
 {
@@ -358,6 +355,7 @@ boolean measureexttemp()
   }
 }
 
+// --- DATA RETRIEVING ---
 // blink blue LED and write to log
 uint16_t modbusquery(TRegister* reg, uint16_t val)
 {
@@ -373,32 +371,357 @@ void httpquery()
   writetosyslog(20);
 }
 
+// --- WEBPAGES ---
 // error 404 page
 void handleNotFound()
 {
-  server.send(404, TEXTPLAIN, MSG[27]);
+  writetosyslog(27);
+  line = DOCTYPEHTML +
+         "<html>\n"
+         "  <head>\n"
+         "    <title>" + MSG[1] + " | Error 404</title>\n"
+         "  </head>\n"
+         "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
+         "    <h2>" + MSG[1] + "</h2>\n"
+         "    <br>\n"
+         "    " + MSG[9] + mymacaddress + "<br>\n"
+         "    " + MSG[10] + myipaddress + "<br>\n"
+         "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
+         "    " + MSG[15] + String(MB_UID) + "<br>\n"
+         "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
+         "    <hr>\n"
+         "    <h3>ERROR 404!</h3>\n"
+         "    No such page!\n"
+         "    <br>"
+         "    <div align=\"right\"><a href=\"/\">back</a></div>"
+         "    <br>\n"
+         "    <hr>\n"
+         "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
+         "    <br>\n"
+         "  </body>\n"
+         "</html>\n";
+  httpserver.send(404, TEXTHTML, line);
+  httpquery();
+  delay(100);
 }
 
-// loop function
-void loop(void)
+// help page
+void handleHelp()
 {
-  boolean measureerror;
-  server.handleClient();
-  unsigned long currtime = millis();
-  if (currtime - prevtime >= INTERVAL)
+  writetosyslog(21);
+  line = DOCTYPEHTML +
+         "<html>\n"
+         "  <head>\n"
+         "    <title>" + MSG[1] + " | Help</title>\n"
+         "  </head>\n"
+         "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
+         "    <h2>" + MSG[1] + "</h2>\n"
+         "    <br>\n"
+         "    " + MSG[9] + mymacaddress + "<br>\n"
+         "    " + MSG[10] + myipaddress + "<br>\n"
+         "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
+         "    " + MSG[15] + String(MB_UID) + "<br>\n"
+         "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
+         "    <hr>\n"
+         "    <h3>Information and data access</h3>\n"
+         "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
+         "      <tr><td colspan=\"3\" align=\"center\"><b>Information pages</b></td></tr>\n"
+         "      <tr>\n"
+         "        <td><a href=\"http://" + myipaddress + "/\">http://" + myipaddress + "/</a></td>\n"
+         "        <td>help</td>\n"
+         "        <td>" + TEXTHTML + "</td>\n"
+         "      </tr>\n"
+         "      <tr>\n"
+         "        <td><a href=\"http://" + myipaddress + "/summary\">http://" + myipaddress + "/summary</a></td>\n"
+         "        <td>summary page</td>\n"
+         "        <td>" + TEXTHTML + "</td>\n"
+         "      </tr>\n"
+         "      <tr>\n"
+         "        <td><a href=\"http://" + myipaddress + "/log\">http://" + myipaddress + "/log</a></td>\n"
+         "        <td>log</td>\n"
+         "        <td>" + TEXTHTML + "</td>\n"
+         "      </tr>\n"
+         "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with HTTP</b></td>\n"
+         "      <tr>\n"
+         "        <td>\n"
+         "          <a href=\"http://" + myipaddress + "/get/csv\">http://" + myipaddress + "/get/csv</a>"
+         "        </td>\n"
+         "        <td>all measured values and status in CSV format</td>\n"
+         "        <td>" + TEXTPLAIN + "</td>\n"
+         "      </tr>\n"
+         "      <tr>\n"
+         "        <td><a href=\"http://" + myipaddress + "/get/json\">http://" + myipaddress + "/get/json</a></td>\n"
+         "        <td>all measured values and status in JSON format</td>\n"
+         "        <td>" + TEXTPLAIN + "</td>\n"
+         "      </tr>\n"
+         "      <tr>\n"
+         "        <td><a href=\"http://" + myipaddress + "/get/txt\">http://" + myipaddress + "/get/txt</a></td>\n"
+         "        <td>all measured values and status in TXT format</td>\n"
+         "        <td>" + TEXTPLAIN + "</td>\n"
+         "      </tr>\n"
+         "      <tr>\n"
+         "        <td><a href=\"http://" + myipaddress + "/get/xml\">http://" + myipaddress + "/get/xml</a></td>\n"
+         "        <td>all measured values and status in XML format</td>\n"
+         "        <td>" + TEXTPLAIN + "</td>\n"
+         "      </tr>\n"
+         "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n";
+  for (int i = 0; i < 3; i++)
   {
-    prevtime = currtime;
-    measureerror = measureinttemphum() && measureexttemp();
-    greenled(measureerror);
-    redled(! measureerror);
-    blinkyellowled();
+    line +=
+      "      <tr>\n"
+      "        <td>" + String(i + 10001) + "</td>\n"
+      "        <td>" + DI_DESC[i] + "</td>\n"
+      "        <td>bit</td>\n"
+      "      </tr>\n";
   }
-  mbtcp.task();
-  delay(10);
-  mbrtu.task();
-  yield();
+  for (int i = 0; i < 3; i++)
+  {
+    line +=
+      "      <tr>\n"
+      "        <td>" + String(i + 30001) + "</td>\n"
+      "        <td>" + IR_DESC[i] + "</td>\n"
+      "        <td>integer</td>\n"
+      "      </tr>\n";
+  }
+  line +=
+    "      <tr>\n"
+    "        <td>40001-40008</td>\n"
+    "        <td>device name</td>\n"
+    "        <td>8 ASCII coded char</td>\n"
+    "      </tr>\n"
+    "      <tr>\n"
+    "        <td>40009-40011</td>\n"
+    "        <td>software version</td>\n"
+    "        <td>3 byte</td>\n"
+    "      </tr>\n"
+    "      <tr>\n"
+    "        <td>40012-40017</td>\n"
+    "        <td>MAC address</td>\n"
+    "        <td>6 byte</td>\n"
+    "      </tr>\n"
+    "      <tr>\n"
+    "        <td>40018-40021</td>\n"
+    "        <td>IP address</td>\n"
+    "        <td>4 byte</td>\n"
+    "      </tr>\n"
+    "      <tr>\n"
+    "        <td>40022</td>\n"
+    "        <td>Modbus UID</td>\n"
+    "        <td>1 byte</td>\n"
+    "      </tr>\n"
+    "      <tr>\n"
+    "        <td>40023-40028</td>\n"
+    "        <td>serial port speed</td>\n"
+    "        <td>6 ASCII coded char</td>\n"
+    "      </tr>\n"
+    "    </table>\n"
+    "    <br>"
+    "    <hr>\n"
+    "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
+    "    <br>\n"
+    "  </body>\n"
+    "</html>\n";
+  httpserver.send(200, TEXTHTML, line);
+  httpquery();
+  delay(100);
+};
+
+// summary page
+void handleSummary()
+{
+  writetosyslog(22);
+  line = DOCTYPEHTML +
+         "<html>\n"
+         "  <head>\n"
+         "    <title>" + MSG[1] + " | Summary</title>\n"
+         "  </head>\n"
+         "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
+         "    <h2>" + MSG[1] + "</h2>\n"
+         "    <br>\n"
+         "    " + MSG[9] + mymacaddress + "<br>\n"
+         "    " + MSG[10] + myipaddress + "<br>\n"
+         "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
+         "    " + MSG[15] + String(MB_UID) + "<br>\n"
+         "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
+         "    <hr>\n"
+         "    <h3>All measured values and status</h3>\n"
+         "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n";
+  for (int i = 0; i < 3; i++)
+  {
+    line +=
+      "      <tr>\n"
+      "        <td>" + IR_DESC[i] + "</td>\n"
+      "        <td align=\"right\">" + String(ir_values[i]) + "</td>\n"
+      "      </tr>\n";
+  }
+  for (int i = 0; i < 3; i++)
+  {
+    line +=
+      "      <tr>\n"
+      "        <td>" + DI_DESC[i] + "</td>\n"
+      "        <td align=\"right\">" + String(di_values[i]) + "</td>\n"
+      "      </tr>\n";
+  }
+  line +=
+    "    </table>\n"
+    "    <br>"
+    "    <hr>\n"
+    "    <div align=\"right\"><a href=\"/\">back</a></div>"
+    "    <br>\n"
+    "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
+    "    <br>\n"
+    "  </body>\n"
+    "</html>\n";
+  httpserver.send(200, TEXTHTML, line);
+  httpquery();
+  delay(100);
 }
 
+// log page
+void handleLog()
+{
+  writetosyslog(23);
+  line = DOCTYPEHTML +
+         "<html>\n"
+         "  <head>\n"
+         "    <title>" + MSG[1] + " | Log</title>\n"
+         "  </head>\n"
+         "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
+         "    <h2>" + MSG[1] + "</h2>\n"
+         "    <br>\n"
+         "    " + MSG[9] + mymacaddress + "<br>\n"
+         "    " + MSG[10] + myipaddress + "<br>\n"
+         "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
+         "    " + MSG[15] + String(MB_UID) + "<br>\n"
+         "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
+         "    <hr>\n"
+         "    <h3>Last 64 lines of system log:</h3>\n"
+         "    <table border=\"0\" cellpadding=\"3\" cellspacing=\"0\">\n";
+  for (int i = 0; i < 64; i++)
+    if (syslog[i] > 0)
+      line += "      <tr><td align=right><b>" + String(i) + "</b></td><td>" + MSG[syslog[i]] + "</td></tr>\n";
+  line +=
+    "    </table>\n"
+    "    <br>"
+    "    <hr>\n"
+    "    <div align=\"right\"><a href=\"/\">back</a></div>"
+    "    <br>\n"
+    "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
+    "    <br>\n"
+    "  </body>\n"
+    "</html>\n";
+  httpserver.send(200, TEXTHTML, line);
+  httpquery();
+  delay(100);
+}
+
+// get all measured data in CSV format
+void handleGetCSV()
+{
+  writetosyslog(24);
+  line = "\"" + HR_NAME[0] + "\",\"" + SWNAME + "\"\n"
+         "\"" + HR_NAME[1] + "\",\"" + SWVERSION + "\"\n"
+         "\"" + HR_NAME[2] + "\",\"" + mymacaddress + "\"\n"
+         "\"" + HR_NAME[3] + "\",\"" + myipaddress + "\"\n"
+         "\"" + HR_NAME[4] + "\",\"" + String(MB_UID) + "\"\n"
+         "\"" + HR_NAME[5] + "\",\"" + String(COM_SPEED) + "\"\n";
+  for (int i = 0; i < 3; i++)
+    line += "\"" + IR_NAME[i] + "\",\"" + String(ir_values[i]) + "\"\n";
+  for (int i = 0; i < 3; i++)
+    line += "\"" + DI_NAME[i] + "\",\"" + String(di_values[i]) + "\"\n";
+  httpserver.send(200, TEXTPLAIN, line);
+  httpquery();
+  delay(100);
+};
+
+// get all measured values in JSON format
+void handleGetJSON()
+{
+  writetosyslog(24);
+  line = "{\n"
+         "  \"software\": {\n"
+         "    \"" + HR_NAME[0] + "\": \"" + SWNAME + "\",\n"
+         "    \"" + HR_NAME[1] + "\": \"" + SWVERSION + "\"\n"
+         "  },\n"
+         "  \"hardware\": {\n"
+         "    \"" + HR_NAME[2] + "\": \"" + mymacaddress + "\",\n"
+         "    \"" + HR_NAME[3] + "\": \"" + myipaddress + "\",\n"
+         "    \"" + HR_NAME[4] + "\": \"" + String(MB_UID) + "\",\n"
+         "    \"" + HR_NAME[5] + "\": \"" + String(COM_SPEED) + "\"\n"
+         "  },\n"
+         "  \"integer\": {\n";
+  for (int i = 0; i < 3; i++)
+  {
+    line += "    \"" + IR_NAME[i] + "\": \"" + String(ir_values[i]);
+    if (i < 2 ) line += "\",\n"; else  line += "\"\n";
+  }
+  line +=
+    "  },\n"
+    "  \"bit\": {\n";
+  for (int i = 0; i < 3; i++)
+  {
+    line += "    \"" + DI_NAME[i] + "\": \"" + String(di_values[i]);
+    if (i < 2 ) line += "\",\n"; else  line += "\"\n";
+  }
+  line +=
+    "  }\n"
+    "}\n";
+  httpserver.send(200, TEXTPLAIN, line);
+  httpquery();
+  delay(100);
+};
+
+// get all measured data in TXT format
+void handleGetTXT()
+{
+  writetosyslog(24);
+  line = SWNAME + "\n" +
+         SWVERSION + "\n" +
+         mymacaddress + "\n" +
+         myipaddress + "\n" + \
+         String(MB_UID) + "\n" + \
+         String(COM_SPEED) + "\n";
+  for (int i = 0; i < 3; i++)
+    line += String(ir_values[i]) + "\n";
+  for (int i = 0; i < 3; i++)
+    line += String(di_values[i]) + "\n";
+  httpserver.send(200, TEXTPLAIN, line);
+  httpquery();
+  delay(100);
+};
+
+// get all measured values in XML format
+void handleGetXML()
+{
+  writetosyslog(24);
+  line = "<xml>\n"
+         "  <software>\n"
+         "    <" + HR_NAME[0] + ">" + SWNAME + "</" + HR_NAME[0] + ">\n"
+         "    <" + HR_NAME[1] + ">" + SWVERSION + "</" + HR_NAME[1] + ">\n"
+         "  </software>\n"
+         "  <hardware>\n"
+         "    <" + HR_NAME[2] + ">" + mymacaddress + "</" + HR_NAME[2] + ">\n"
+         "    <" + HR_NAME[3] + ">" + myipaddress + "</" + HR_NAME[3] + ">\n"
+         "    <" + HR_NAME[4] + ">" + String(MB_UID) + "</" + HR_NAME[4] + ">\n"
+         "    <" + HR_NAME[5] + ">" + String(COM_SPEED) + "</" + HR_NAME[5] + ">\n"
+         "  </hardware>\n"
+         "  <integer>\n";
+  for (int i = 0; i < 3; i++)
+    line += "    <" + IR_NAME[i] + ">" + String(ir_values[i]) + "</" + IR_NAME[i] + ">\n";
+  line +=
+    "  </integer>\n"
+    "  <bit>\n";
+  for (int i = 0; i < 3; i++)
+    line += "    <" + DI_NAME[i] + ">" + String(di_values[i]) + "</" + DI_NAME[i] + ">\n";
+  line +=
+    "  </bit>\n"
+    "</xml>";
+  httpserver.send(200, TEXTPLAIN, line);
+  httpquery();
+  delay(100);
+};
+
+// --- MAIN ---
 // initializing function
 void setup(void)
 {
@@ -474,313 +797,35 @@ void setup(void)
   // start webserver
   writetosyslog(17);
   Serial.println(MSG[17]);
-  server.onNotFound(handleNotFound);
-  // help page
-  server.on("/", []()
-  {
-    writetosyslog(21);
-    line =
-      "<html>\n"
-      "  <head>\n"
-      "    <title>" + MSG[1] + " | Help</title>\n"
-      "  </head>\n"
-      "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
-      "    <h2>" + MSG[1] + "</h2>\n"
-      "    <br>\n"
-      "    " + MSG[9] + mymacaddress + "<br>\n"
-      "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
-      "    " + MSG[15] + String(MB_UID) + "<br>\n"
-      "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
-      "    <hr>\n"
-      "    <h3>Information and data access</h3>\n"
-      "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n"
-      "      <tr><td colspan=\"3\" align=\"center\"><b>Information pages</b></td></tr>\n"
-      "      <tr>\n"
-      "        <td><a href=\"http://" + myipaddress + "/\">http://" + myipaddress + "/</a></td>\n"
-      "        <td>help</td>\n"
-      "        <td>" + TEXTHTML + "</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td><a href=\"http://" + myipaddress + "/summary\">http://" + myipaddress + "/summary</a></td>\n"
-      "        <td>summary page</td>\n"
-      "        <td>" + TEXTHTML + "</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td><a href=\"http://" + myipaddress + "/log\">http://" + myipaddress + "/log</a></td>\n"
-      "        <td>log</td>\n"
-      "        <td>" + TEXTHTML + "</td>\n"
-      "      </tr>\n"
-      "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with HTTP</b></td>\n"
-      "      <tr>\n"
-      "        <td>\n"
-      "          <a href=\"http://" + myipaddress + "/get/csv\">http://" + myipaddress + "/get/csv</a>"
-      "        </td>\n"
-      "        <td>all measured values and status in CSV format</td>\n"
-      "        <td>" + TEXTPLAIN + "</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td><a href=\"http://" + myipaddress + "/get/json\">http://" + myipaddress + "/get/json</a></td>\n"
-      "        <td>all measured values and status in JSON format</td>\n"
-      "        <td>" + TEXTPLAIN + "</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td><a href=\"http://" + myipaddress + "/get/txt\">http://" + myipaddress + "/get/txt</a></td>\n"
-      "        <td>all measured values and status in TXT format</td>\n"
-      "        <td>" + TEXTPLAIN + "</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td><a href=\"http://" + myipaddress + "/get/xml\">http://" + myipaddress + "/get/xml</a></td>\n"
-      "        <td>all measured values and status in XML format</td>\n"
-      "        <td>" + TEXTPLAIN + "</td>\n"
-      "      </tr>\n"
-      "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n";
-    for (int i = 0; i < 3; i++)
-    {
-      line +=
-        "      <tr>\n"
-        "        <td>" + String(i + 10001) + "</td>\n"
-        "        <td>" + DI_DESC[i] + "</td>\n"
-        "        <td>bit</td>\n"
-        "      </tr>\n";
-    }
-    for (int i = 0; i < 3; i++)
-    {
-      line +=
-        "      <tr>\n"
-        "        <td>" + String(i + 30001) + "</td>\n"
-        "        <td>" + IR_DESC[i] + "</td>\n"
-        "        <td>integer</td>\n"
-        "      </tr>\n";
-    }
-    line +=
-      "      <tr>\n"
-      "        <td>40001-40008</td>\n"
-      "        <td>device name</td>\n"
-      "        <td>8 ASCII coded char</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>40009-40011</td>\n"
-      "        <td>software version</td>\n"
-      "        <td>3 byte</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>40012-40017</td>\n"
-      "        <td>MAC address</td>\n"
-      "        <td>6 byte</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>40018-40021</td>\n"
-      "        <td>IP address</td>\n"
-      "        <td>4 byte</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>40022</td>\n"
-      "        <td>Modbus UID</td>\n"
-      "        <td>1 byte</td>\n"
-      "      </tr>\n"
-      "      <tr>\n"
-      "        <td>40023-40028</td>\n"
-      "        <td>serial port speed</td>\n"
-      "        <td>6 ASCII coded char</td>\n"
-      "      </tr>\n"
-      "    </table>\n"
-      "    <br>\n"
-      "    <hr>\n"
-      "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
-      "    <br>\n"
-      "  </body>\n"
-      "</html>\n";
-    server.send(200, TEXTHTML, line);
-    httpquery();
-    delay(100);
-  });
-  // summary page
-  server.on("/summary", []()
-  {
-    writetosyslog(22);
-    line =
-      "<html>\n"
-      "  <head>\n"
-      "    <title>" + MSG[1] + " | Summary</title>\n"
-      "  </head>\n"
-      "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
-      "    <h2>" + MSG[1] + "</h2>\n"
-      "    <br>\n"
-      "    " + MSG[9] + mymacaddress + "<br>\n"
-      "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
-      "    " + MSG[15] + String(MB_UID) + "<br>\n"
-      "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
-      "    <hr>\n"
-      "    <h3>All measured values and status</h3>\n"
-      "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n";
-    for (int i = 0; i < 3; i++)
-    {
-      line +=
-        "      <tr>\n"
-        "        <td>" + IR_DESC[i] + "</td>\n"
-        "        <td align=\"right\">" + String(ir_values[i]) + "</td>\n"
-        "      </tr>\n";
-    }
-    for (int i = 0; i < 3; i++)
-    {
-      line +=
-        "      <tr>\n"
-        "        <td>" + DI_DESC[i] + "</td>\n"
-        "        <td align=\"right\">" + String(di_values[i]) + "</td>\n"
-        "      </tr>\n";
-    }
-    line +=
-      "    </table>\n"
-      "    <br>\n"
-      "    <hr>\n"
-      "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
-      "    <br>\n"
-      "  </body>\n"
-      "</html>\n";
-    server.send(200, TEXTHTML, line);
-    httpquery();
-    delay(100);
-  });
-  // log page
-  server.on("/log", []()
-  {
-    writetosyslog(23);
-    line =
-      "<html>\n"
-      "  <head>\n"
-      "    <title>" + MSG[1] + " | Log</title>\n"
-      "  </head>\n"
-      "  <body bgcolor=\"#e2f4fd\" style=\"font-family:\'sans\'\">\n"
-      "    <h2>" + MSG[1] + "</h2>\n"
-      "    <br>\n"
-      "    " + MSG[9] + mymacaddress + "<br>\n"
-      "    " + MSG[10] + myipaddress + "<br>\n"
-      "    " + MSG[3] + "v" + SWVERSION + "<br>\n"
-      "    " + MSG[15] + String(MB_UID) + "<br>\n"
-      "    " + MSG[16] + String(COM_SPEED) + "<br>\n"
-      "    <hr>\n"
-      "    <h3>Last 64 lines of system log:</h3>\n"
-      "    <table border=\"0\" cellpadding=\"3\" cellspacing=\"0\">\n";
-    for (int i = 0; i < 64; i++)
-      if (syslog[i] > 0)
-        line += "      <tr><td><pre>" + String(i) + "</pre></td><td><pre>" + MSG[syslog[i]] + "</pre></td></tr>\n";
-    line +=
-      "    </table>\n"
-      "    <br>\n"
-      "    <hr>\n"
-      "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
-      "    <br>\n"
-      "  </body>\n"
-      "</html>\n";
-    server.send(200, TEXTHTML, line);
-    httpquery();
-    delay(100);
-  });
-  // get all measured data in CSV format
-  server.on("/get/csv", []()
-  {
-    writetosyslog(24);
-    line = "\"" + HR_NAME[0] + "\",\"" + SWNAME + "\"\n"
-           "\"" + HR_NAME[1] + "\",\"" + SWVERSION + "\"\n"
-           "\"" + HR_NAME[2] + "\",\"" + mymacaddress + "\"\n"
-           "\"" + HR_NAME[3] + "\",\"" + myipaddress + "\"\n"
-           "\"" + HR_NAME[4] + "\",\"" + String(MB_UID) + "\"\n"
-           "\"" + HR_NAME[5] + "\",\"" + String(COM_SPEED) + "\"\n";
-    for (int i = 0; i < 3; i++)
-      line += "\"" + IR_NAME[i] + "\",\"" + String(ir_values[i]) + "\"\n";
-    for (int i = 0; i < 3; i++)
-      line += "\"" + DI_NAME[i] + "\",\"" + String(di_values[i]) + "\"\n";
-    server.send(200, TEXTPLAIN, line);
-    httpquery();
-    delay(100);
-  });
-  // get all measured values in JSON format
-  server.on("/get/json", []()
-  {
-    writetosyslog(24);
-    line = "{\n"
-           "  \"software\": {\n"
-           "    \"" + HR_NAME[0] + "\": \"" + SWNAME + "\",\n"
-           "    \"" + HR_NAME[1] + "\": \"" + SWVERSION + "\"\n"
-           "  },\n"
-           "  \"hardware\": {\n"
-           "    \"" + HR_NAME[2] + "\": \"" + mymacaddress + "\",\n"
-           "    \"" + HR_NAME[3] + "\": \"" + myipaddress + "\",\n"
-           "    \"" + HR_NAME[4] + "\": \"" + String(MB_UID) + "\",\n"
-           "    \"" + HR_NAME[5] + "\": \"" + String(COM_SPEED) + "\"\n"
-           "  },\n"
-           "  \"integer\": {\n";
-    for (int i = 0; i < 3; i++)
-    {
-      line += "    \"" + IR_NAME[i] + "\": \"" + String(ir_values[i]);
-      if (i < 2 ) line += "\",\n"; else  line += "\"\n";
-    }
-    line +=
-      "  },\n"
-      "  \"bit\": {\n";
-    for (int i = 0; i < 3; i++)
-    {
-      line += "    \"" + DI_NAME[i] + "\": \"" + String(di_values[i]);
-      if (i < 2 ) line += "\",\n"; else  line += "\"\n";
-    }
-    line +=
-      "  }\n"
-      "}\n";
-    server.send(200, TEXTPLAIN, line);
-    httpquery();
-    delay(100);
-  });
-  // get all measured data in TXT format
-  server.on("/get/txt", []()
-  {
-    writetosyslog(24);
-    line = SWNAME + "\n" +
-           SWVERSION + "\n" +
-           mymacaddress + "\n" +
-           myipaddress + "\n" + \
-           String(MB_UID) + "\n" + \
-           String(COM_SPEED) + "\n";
-    for (int i = 0; i < 3; i++)
-      line += String(ir_values[i]) + "\n";
-    for (int i = 0; i < 3; i++)
-      line += String(di_values[i]) + "\n";
-    server.send(200, TEXTPLAIN, line);
-    httpquery();
-    delay(100);
-  });
-  // get all measured values in XML format
-  server.on("/get/xml", []()
-  {
-    writetosyslog(24);
-    line = "<xml>\n"
-           "  <software>\n"
-           "    <" + HR_NAME[0] + ">" + SWNAME + "</" + HR_NAME[0] + ">\n"
-           "    <" + HR_NAME[1] + ">" + SWVERSION + "</" + HR_NAME[1] + ">\n"
-           "  </software>\n"
-           "  <hardware>\n"
-           "    <" + HR_NAME[2] + ">" + mymacaddress + "</" + HR_NAME[2] + ">\n"
-           "    <" + HR_NAME[3] + ">" + myipaddress + "</" + HR_NAME[3] + ">\n"
-           "    <" + HR_NAME[4] + ">" + String(MB_UID) + "</" + HR_NAME[4] + ">\n"
-           "    <" + HR_NAME[5] + ">" + String(COM_SPEED) + "</" + HR_NAME[5] + ">\n"
-           "  </hardware>\n"
-           "  <integer>\n";
-    for (int i = 0; i < 3; i++)
-      line += "    <" + IR_NAME[i] + ">" + String(ir_values[i]) + "</" + IR_NAME[i] + ">\n";
-    line +=
-      "  </integer>\n"
-      "  <bit>\n";
-    for (int i = 0; i < 3; i++)
-      line += "    <" + DI_NAME[i] + ">" + String(di_values[i]) + "</" + DI_NAME[i] + ">\n";
-    line +=
-      "  </bit>\n"
-      "</xml>";
-    server.send(200, TEXTPLAIN, line);
-    httpquery();
-    delay(100);
-  });
-  server.begin();
+  httpserver.onNotFound(handleNotFound);
+  httpserver.on("/", handleHelp);
+  httpserver.on("/summary", handleSummary);
+  httpserver.on("/log", handleLog);
+  httpserver.on("/get/csv", handleGetCSV);
+  httpserver.on("/get/json", handleGetJSON);
+  httpserver.on("/get/txt", handleGetTXT);
+  httpserver.on("/get/xml", handleGetXML);
+  httpserver.begin();
   Serial.println(MSG[18]);
   beep(1);
+}
+
+// loop function
+void loop(void)
+{
+  boolean measureerror;
+  httpserver.handleClient();
+  unsigned long currtime = millis();
+  if (currtime - prevtime >= INTERVAL)
+  {
+    prevtime = currtime;
+    measureerror = measureinttemphum() && measureexttemp();
+    greenled(measureerror);
+    redled(! measureerror);
+    blinkyellowled();
+  }
+  mbtcp.task();
+  delay(10);
+  mbrtu.task();
+  yield();
 }
