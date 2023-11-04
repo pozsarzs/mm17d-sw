@@ -22,6 +22,7 @@
 
 #define       TYP_SENSOR1 DHT11
 //#define       PT100_SIMULATION
+//#define       SERIAL_CONSOLE
 
 #ifdef PT100_SIMULATION
 const float   TPT[3]            = { -30, 0, 50};       // T in degree Celsius
@@ -56,12 +57,7 @@ const String  SWNAME            = "MM17D";
 const String  SWVERSION         = "0.1.0";
 const String  TEXTHTML          = "text/html";
 const String  TEXTPLAIN         = "text/plain";
-const String  DOCTYPEHTML       = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">";
-
-// Modbus registers
-boolean       di_values[3]      = {};
-int           ir_values[3]      = {};
-int           hr_values[28]     = {};
+const String  DOCTYPEHTML       = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n";
 
 // other variables
 int           syslog[64]        = {};
@@ -112,8 +108,8 @@ const String DI_DESC[3]         =
 const String  IR_DESC[3]        =
 {
   /*  0 */  "internal relative humidity in %",
-  /*  1 */  "internal temperature in &deg;C",
-  /*  2 */  "external temperature in &deg;C"
+  /*  1 */  "internal temperature in ",
+  /*  2 */  "external temperature in "
 };
 
 DHT dht(PRT_DI_SENSOR1, TYP_SENSOR1, 11);
@@ -159,14 +155,14 @@ void fillholdingregisters()
   while (s.length() < 8)
     s = char(0x00) + s;
   for (int i = 0; i < 9; i++)
-    hr_values[i] = char(s[i]);
+    mbrtu.Hreg(i, char(s[i]));
   // version
   StringSplitter *splitter1 = new StringSplitter(SWVERSION, '.', 3);
   itemCount = splitter1->getItemCount();
   for (int i = 0; i < itemCount; i++)
   {
     String item = splitter1->getItemAtIndex(i);
-    hr_values[8 + i] = item.toInt();
+    mbrtu.Hreg(8 + i, item.toInt());
   }
   delete splitter1;
   // MAC-address
@@ -175,7 +171,7 @@ void fillholdingregisters()
   for (int i = 0; i < itemCount; i++)
   {
     String item = splitter2->getItemAtIndex(i);
-    hr_values[11 + i] = hstol(item);
+    mbrtu.Hreg(11 + i, hstol(item));
   }
   delete splitter2;
   // IP-address
@@ -184,22 +180,17 @@ void fillholdingregisters()
   for (int i = 0; i < itemCount; i++)
   {
     String item = splitter3->getItemAtIndex(i);
-    hr_values[17 + i] = item.toInt();
+    mbrtu.Hreg(17 + i, item.toInt());
   }
   delete splitter3;
   // MB UID
-  hr_values[21] = MB_UID;
+  mbrtu.Hreg(21, MB_UID);
   // serial speed
   s = String(COM_SPEED);
   while (s.length() < 6)
     s = char(0x00) + s;
   for (int i = 0; i < 6; i++)
-    hr_values[22 + i] = char(s[i]);
-  for (int i = 0; i < 28; i++)
-  {
-    mbtcp.Hreg(i, hr_values[i]);
-    mbrtu.Hreg(i, hr_values[i]);
-  }
+    mbrtu.Hreg(22 + i, char(s[i]));
 }
 
 // --- LEDS AND BUZZER ---
@@ -212,28 +203,22 @@ void blueled(boolean b)
 // switch on/off green LED
 void greenled(boolean b)
 {
-  di_values[0] = b;
-  mbtcp.Ists(0, di_values[0]);
-  mbrtu.Ists(0, di_values[0]);
-  digitalWrite(PRT_DO_LEDGREEN, di_values[0]);
+  mbrtu.Ists(0, b);
+  digitalWrite(PRT_DO_LEDGREEN, b);
 }
 
 // switch on/off yellow LED
 void yellowled(boolean b)
 {
-  di_values[1] = b;
-  mbtcp.Ists(1, di_values[1]);
-  mbrtu.Ists(1, di_values[1]);
-  digitalWrite(PRT_DO_LEDYELLOW, di_values[1]);
+  mbrtu.Ists(1, b);
+  digitalWrite(PRT_DO_LEDYELLOW, b);
 }
 
 // switch on/off red LED
 void redled(boolean b)
 {
-  di_values[2] = b;
-  mbtcp.Ists(2, di_values[2]);
-  mbrtu.Ists(2, di_values[2]);
-  digitalWrite(PRT_DO_LEDRED, di_values[2]);
+  mbrtu.Ists(2, b);
+  digitalWrite(PRT_DO_LEDRED, b);
 }
 
 // blinking blue LED
@@ -301,12 +286,8 @@ int measureinttemphum()
     return 0;
   } else
   {
-    ir_values[0] = (int)fh;
-    ir_values[1] = (int)ft;
-    mbtcp.Ireg(0, ir_values[0]);
-    mbtcp.Ireg(1, ir_values[1]);
-    mbrtu.Ireg(0, ir_values[0]);
-    mbrtu.Ireg(1, ir_values[1]);
+    mbrtu.Ireg(0, round(fh));
+    mbrtu.Ireg(1, round(ft + 273.15)); // convert to K
     return 1;
   }
 }
@@ -331,9 +312,11 @@ boolean measureexttemp()
   u1 = analogRead(PRT_AI_SENSOR2);
 #ifdef PT100_SIMULATION
   u1 = U0 * (RPT[count] / (R1 + RPT[count]));
+#ifdef SERIAL_CONSOLE
   Serial.println("Tpt100: " + String(int(TPT[count])) + " °C");
   Serial.println("Rpt100: " + String(RPT[count]) + " Ω");
   Serial.println("Uadc:   " + String(int(u1)) + " mV");
+#endif
   if (count < 2) count++ else count = 0;
 #endif
   if ((u1 == 0) || (u1 == MAXADCVALUE))
@@ -346,11 +329,11 @@ boolean measureexttemp()
     r2 = u1 / ((U0 - u1) / R1);
     t = (((((r2 * C4 + C3) * r2 + C2) * r2 + C1) * r2) / ((((r2 * C7 + C6) * r2 + C5) * r2) + 1)) + C0;
 #ifdef PT100_SIMULATION
+#ifdef SERIAL_CONSOLE
     Serial.println("Tcalc:  " + String(int(t)) + " °C\n");
 #endif
-    ir_values[2] = (int)t;
-    mbtcp.Ireg(2, ir_values[2]);
-    mbrtu.Ireg(2, ir_values[2]);
+#endif
+    mbrtu.Ireg(2, round(t + 273.15)); // convert to K
     return true;
   }
 }
@@ -392,10 +375,10 @@ void handleNotFound()
          "    <hr>\n"
          "    <h3>ERROR 404!</h3>\n"
          "    No such page!\n"
-         "    <br>"
-         "    <div align=\"right\"><a href=\"/\">back</a></div>"
          "    <br>\n"
          "    <hr>\n"
+         "    <div align=\"right\"><a href=\"/\">back</a></div>\n"
+         "    <br>\n"
          "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
          "    <br>\n"
          "  </body>\n"
@@ -443,9 +426,7 @@ void handleHelp()
          "      </tr>\n"
          "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with HTTP</b></td>\n"
          "      <tr>\n"
-         "        <td>\n"
-         "          <a href=\"http://" + myipaddress + "/get/csv\">http://" + myipaddress + "/get/csv</a>"
-         "        </td>\n"
+         "        <td><a href=\"http://" + myipaddress + "/get/csv\">http://" + myipaddress + "/get/csv</a></td>\n"
          "        <td>all measured values and status in CSV format</td>\n"
          "        <td>" + TEXTPLAIN + "</td>\n"
          "      </tr>\n"
@@ -474,12 +455,15 @@ void handleHelp()
       "        <td>bit</td>\n"
       "      </tr>\n";
   }
+  String s;
   for (int i = 0; i < 3; i++)
   {
+    s = IR_DESC[i] ;
+    if (i > 0) s += "K";
     line +=
       "      <tr>\n"
       "        <td>" + String(i + 30001) + "</td>\n"
-      "        <td>" + IR_DESC[i] + "</td>\n"
+      "        <td>" + s + "</td>\n"
       "        <td>integer</td>\n"
       "      </tr>\n";
   }
@@ -515,8 +499,9 @@ void handleHelp()
     "        <td>6 ASCII coded char</td>\n"
     "      </tr>\n"
     "    </table>\n"
-    "    <br>"
+    "    <br>\n"
     "    <hr>\n"
+    "    <br>\n"
     "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
     "    <br>\n"
     "  </body>\n"
@@ -546,12 +531,21 @@ void handleSummary()
          "    <hr>\n"
          "    <h3>All measured values and status</h3>\n"
          "    <table border=\"1\" cellpadding=\"3\" cellspacing=\"0\">\n";
+  String s;
+  int ii;
   for (int i = 0; i < 3; i++)
   {
+    s = IR_DESC[i];
+    ii = mbrtu.Ireg(i);
+    if (i > 0)
+    {
+      s += "&deg;C";
+      ii -= 273;
+    }
     line +=
       "      <tr>\n"
-      "        <td>" + IR_DESC[i] + "</td>\n"
-      "        <td align=\"right\">" + String(ir_values[i]) + "</td>\n"
+      "        <td>" + s + "</td>\n"
+      "        <td align=\"right\">" + String(ii) + "</td>\n"
       "      </tr>\n";
   }
   for (int i = 0; i < 3; i++)
@@ -559,14 +553,14 @@ void handleSummary()
     line +=
       "      <tr>\n"
       "        <td>" + DI_DESC[i] + "</td>\n"
-      "        <td align=\"right\">" + String(di_values[i]) + "</td>\n"
+      "        <td align=\"right\">" + String(mbrtu.Ists(i)) + "</td>\n"
       "      </tr>\n";
   }
   line +=
     "    </table>\n"
-    "    <br>"
+    "    <br>\n"
     "    <hr>\n"
-    "    <div align=\"right\"><a href=\"/\">back</a></div>"
+    "    <div align=\"right\"><a href=\"/\">back</a></div>\n"
     "    <br>\n"
     "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
     "    <br>\n"
@@ -602,9 +596,9 @@ void handleLog()
       line += "      <tr><td align=right><b>" + String(i) + "</b></td><td>" + MSG[syslog[i]] + "</td></tr>\n";
   line +=
     "    </table>\n"
-    "    <br>"
+    "    <br>\n"
     "    <hr>\n"
-    "    <div align=\"right\"><a href=\"/\">back</a></div>"
+    "    <div align=\"right\"><a href=\"/\">back</a></div>\n"
     "    <br>\n"
     "    <center>" + MSG[2] + " <a href=\"" + MSG[28] + "\">" + MSG[28] + "</a></center>\n"
     "    <br>\n"
@@ -626,13 +620,13 @@ void handleGetCSV()
          "\"" + HR_NAME[4] + "\",\"" + String(MB_UID) + "\"\n"
          "\"" + HR_NAME[5] + "\",\"" + String(COM_SPEED) + "\"\n";
   for (int i = 0; i < 3; i++)
-    line += "\"" + IR_NAME[i] + "\",\"" + String(ir_values[i]) + "\"\n";
+    line += "\"" + IR_NAME[i] + "\",\"" + String(mbrtu.Ireg(i)) + "\"\n";
   for (int i = 0; i < 3; i++)
-    line += "\"" + DI_NAME[i] + "\",\"" + String(di_values[i]) + "\"\n";
+    line += "\"" + DI_NAME[i] + "\",\"" + String(mbrtu.Ists(i)) + "\"\n";
   httpserver.send(200, TEXTPLAIN, line);
   httpquery();
   delay(100);
-};
+}
 
 // get all measured values in JSON format
 void handleGetJSON()
@@ -652,7 +646,7 @@ void handleGetJSON()
          "  \"integer\": {\n";
   for (int i = 0; i < 3; i++)
   {
-    line += "    \"" + IR_NAME[i] + "\": \"" + String(ir_values[i]);
+    line += "    \"" + IR_NAME[i] + "\": \"" + String(mbrtu.Ireg(i));
     if (i < 2 ) line += "\",\n"; else  line += "\"\n";
   }
   line +=
@@ -660,7 +654,7 @@ void handleGetJSON()
     "  \"bit\": {\n";
   for (int i = 0; i < 3; i++)
   {
-    line += "    \"" + DI_NAME[i] + "\": \"" + String(di_values[i]);
+    line += "    \"" + DI_NAME[i] + "\": \"" + String(mbrtu.Ists(i));
     if (i < 2 ) line += "\",\n"; else  line += "\"\n";
   }
   line +=
@@ -669,7 +663,7 @@ void handleGetJSON()
   httpserver.send(200, TEXTPLAIN, line);
   httpquery();
   delay(100);
-};
+}
 
 // get all measured data in TXT format
 void handleGetTXT()
@@ -682,13 +676,13 @@ void handleGetTXT()
          String(MB_UID) + "\n" + \
          String(COM_SPEED) + "\n";
   for (int i = 0; i < 3; i++)
-    line += String(ir_values[i]) + "\n";
+    line += String(mbrtu.Ireg(i)) + "\n";
   for (int i = 0; i < 3; i++)
-    line += String(di_values[i]) + "\n";
+    line += String(mbrtu.Ists(i)) + "\n";
   httpserver.send(200, TEXTPLAIN, line);
   httpquery();
   delay(100);
-};
+}
 
 // get all measured values in XML format
 void handleGetXML()
@@ -707,19 +701,19 @@ void handleGetXML()
          "  </hardware>\n"
          "  <integer>\n";
   for (int i = 0; i < 3; i++)
-    line += "    <" + IR_NAME[i] + ">" + String(ir_values[i]) + "</" + IR_NAME[i] + ">\n";
+    line += "    <" + IR_NAME[i] + ">" + String(mbrtu.Ireg(i)) + "</" + IR_NAME[i] + ">\n";
   line +=
     "  </integer>\n"
     "  <bit>\n";
   for (int i = 0; i < 3; i++)
-    line += "    <" + DI_NAME[i] + ">" + String(di_values[i]) + "</" + DI_NAME[i] + ">\n";
+    line += "    <" + DI_NAME[i] + ">" + String(mbrtu.Ists(i)) + "</" + DI_NAME[i] + ">\n";
   line +=
     "  </bit>\n"
     "</xml>";
   httpserver.send(200, TEXTPLAIN, line);
   httpquery();
   delay(100);
-};
+}
 
 // --- MAIN ---
 // initializing function
@@ -728,16 +722,22 @@ void setup(void)
   // set serial port
   Serial.begin(COM_SPEED, SERIAL_8N1);
   // write program information
+#ifdef SERIAL_CONSOLE
   Serial.println("");
   Serial.println("");
   Serial.println(MSG[1]);
   Serial.println(MSG[2]);
   Serial.println(MSG[3] + "v" + SWVERSION );
+#endif
   writetosyslog(4);
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[4]);
+#endif
   // initialize GPIO ports
   writetosyslog(5);
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[5]);
+#endif
   pinMode(PRT_DO_BUZZER, OUTPUT);
   pinMode(PRT_DO_LEDBLUE, OUTPUT);
   pinMode(PRT_DO_LEDGREEN, OUTPUT);
@@ -749,44 +749,57 @@ void setup(void)
   digitalWrite(PRT_DO_LEDYELLOW, LOW);
   // initialize sensors
   writetosyslog(6);
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[6]);
+#endif
   dht.begin();
   // connect to wireless network
   writetosyslog(7);
+#ifdef SERIAL_CONSOLE
   Serial.print(MSG[7]);
+#endif
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED)
   {
     knightrider();
+#ifdef SERIAL_CONSOLE
     Serial.print(".");
+#endif
   }
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[8]);
+#endif
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
   myipaddress = WiFi.localIP().toString();
   mymacaddress = WiFi.macAddress();
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[9] + mymacaddress);
   Serial.println(MSG[10] + myipaddress);
   Serial.println(MSG[11] + WiFi.subnetMask().toString());
   Serial.println(MSG[12] + WiFi.gatewayIP().toString());
+#endif
   // start Modbus/TCP server
   writetosyslog(13);
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[13]);
+#endif
   mbtcp.server();
   // start Modbus/RTU slave
   writetosyslog(14);
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[14]);
+#endif
   mbrtu.begin(&Serial);
   mbrtu.setBaudrate(COM_SPEED);
   mbrtu.slave(MB_UID);
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[15] + String(MB_UID));
   Serial.println(MSG[16] + String(COM_SPEED));
+#endif
   // set Modbus registers
-  mbtcp.addIsts(0, false, 3);
   mbrtu.addIsts(0, false, 3);
-  mbtcp.addIreg(0, 0, 3);
   mbrtu.addIreg(0, 0, 3);
-  mbtcp.addHreg(0, 0, 28);
   mbrtu.addHreg(0, 0, 28);
   // set Modbus callback
   mbrtu.onGetIsts(0, modbusquery, 1);
@@ -796,7 +809,9 @@ void setup(void)
   fillholdingregisters();
   // start webserver
   writetosyslog(17);
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[17]);
+#endif
   httpserver.onNotFound(handleNotFound);
   httpserver.on("/", handleHelp);
   httpserver.on("/summary", handleSummary);
@@ -806,7 +821,9 @@ void setup(void)
   httpserver.on("/get/txt", handleGetTXT);
   httpserver.on("/get/xml", handleGetXML);
   httpserver.begin();
+#ifdef SERIAL_CONSOLE
   Serial.println(MSG[18]);
+#endif
   beep(1);
 }
 

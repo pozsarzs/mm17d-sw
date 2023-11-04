@@ -77,8 +77,8 @@ b. Data access with HTTP:
     "modbus_uid","1"
     "com_speed","9600"
     "rhint","67"
-    "tint","19"
-    "text","-2"
+    "tint","292"
+    "text","271"
     "ledg","1"
     "ledy","0"
     "ledr","0"
@@ -91,8 +91,8 @@ b. Data access with HTTP:
     1
     9600
     67
-    19
-    -2
+    292
+    271
     1
     0
     0
@@ -111,8 +111,8 @@ b. Data access with HTTP:
       },
       "integer": {
         "rhint": "67",
-        "tint": "20",
-        "text": "-2"
+        "tint": "292",
+        "text": "271"
       },
       "bit": {
         "ledg": "1",
@@ -135,8 +135,8 @@ b. Data access with HTTP:
       </hardware>
       <integer>
         <rhint>67</rhint>
-        <tint>20</tint>
-        <text>-2</text>
+        <tint>292</tint>
+        <text>271</text>
       </integer>
       <bit>
         <ledg>1</ledg>
@@ -151,8 +151,8 @@ c. Data access with Modbus:
   10003               status of the red LED     (0/1: off/on)  bit
 
   30001               internal humidity in percent             integer
-  30002               internal temperature in degree Celsius   integer
-  30003               external temperature in degree Celsius   integer
+  30002               internal temperature in K                integer
+  30003               external temperature in K                integer
 
   40001-40008         device name                8 ASCII coded char
   40009-40011         software version                       3 byte
