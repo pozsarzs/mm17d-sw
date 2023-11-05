@@ -445,7 +445,8 @@ void handleHelp()
          "        <td>all measured values and status in XML format</td>\n"
          "        <td>" + TEXTPLAIN + "</td>\n"
          "      </tr>\n"
-         "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n";
+         "      <tr><td colspan=\"3\" align=\"center\"><b>Data access with Modbus</b></td>\n"
+         "      <tr><td colspan=\"3\"><i>Status: (read-only)</i></td>\n";
   for (int i = 0; i < 3; i++)
   {
     line +=
@@ -455,6 +456,7 @@ void handleHelp()
       "        <td>bit</td>\n"
       "      </tr>\n";
   }
+  line += "      <tr><td colspan=\"3\"><i>Measured values: (read-only)</i></td>\n";
   String s;
   for (int i = 0; i < 3; i++)
   {
@@ -464,10 +466,11 @@ void handleHelp()
       "      <tr>\n"
       "        <td>" + String(i + 30001) + "</td>\n"
       "        <td>" + s + "</td>\n"
-      "        <td>integer</td>\n"
+      "        <td>uint16</td>\n"
       "      </tr>\n";
   }
   line +=
+    "      <tr><td colspan=\"3\"><i>Software version: (read-only)</i></td>\n"
     "      <tr>\n"
     "        <td>40001-40008</td>\n"
     "        <td>device name</td>\n"
@@ -478,6 +481,7 @@ void handleHelp()
     "        <td>software version</td>\n"
     "        <td>3 byte</td>\n"
     "      </tr>\n"
+    "      <tr><td colspan=\"3\"><i>Network settings: (read-only)</i></td>\n"
     "      <tr>\n"
     "        <td>40012-40017</td>\n"
     "        <td>MAC address</td>\n"
@@ -643,21 +647,23 @@ void handleGetJSON()
          "    \"" + HR_NAME[4] + "\": \"" + String(MB_UID) + "\",\n"
          "    \"" + HR_NAME[5] + "\": \"" + String(COM_SPEED) + "\"\n"
          "  },\n"
-         "  \"integer\": {\n";
+         "  \"data\": {\n";
+  "    \"integer\": {\n";
   for (int i = 0; i < 3; i++)
   {
     line += "    \"" + IR_NAME[i] + "\": \"" + String(mbrtu.Ireg(i));
     if (i < 2 ) line += "\",\n"; else  line += "\"\n";
   }
   line +=
-    "  },\n"
-    "  \"bit\": {\n";
+    "    },\n"
+    "    \"bit\": {\n";
   for (int i = 0; i < 3; i++)
   {
     line += "    \"" + DI_NAME[i] + "\": \"" + String(mbrtu.Ists(i));
     if (i < 2 ) line += "\",\n"; else  line += "\"\n";
   }
   line +=
+    "    }\n"
     "  }\n"
     "}\n";
   httpserver.send(200, TEXTPLAIN, line);
@@ -699,16 +705,18 @@ void handleGetXML()
          "    <" + HR_NAME[4] + ">" + String(MB_UID) + "</" + HR_NAME[4] + ">\n"
          "    <" + HR_NAME[5] + ">" + String(COM_SPEED) + "</" + HR_NAME[5] + ">\n"
          "  </hardware>\n"
-         "  <integer>\n";
+         "  <data>\n"
+         "    <integer>\n";
   for (int i = 0; i < 3; i++)
     line += "    <" + IR_NAME[i] + ">" + String(mbrtu.Ireg(i)) + "</" + IR_NAME[i] + ">\n";
   line +=
-    "  </integer>\n"
-    "  <bit>\n";
+    "    </integer>\n"
+    "    <bit>\n";
   for (int i = 0; i < 3; i++)
     line += "    <" + DI_NAME[i] + ">" + String(mbrtu.Ists(i)) + "</" + DI_NAME[i] + ">\n";
   line +=
-    "  </bit>\n"
+    "    </bit>\n"
+    "  </data>\n"
     "</xml>";
   httpserver.send(200, TEXTPLAIN, line);
   httpquery();
