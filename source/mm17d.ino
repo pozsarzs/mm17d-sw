@@ -46,9 +46,27 @@ const int     PRT_DO_LEDRED     = 5;
 const int     PRT_DO_LEDYELLOW  = 4;
 
 // name of the Modbus registers
-const String  DI_NAME[3]        = {"ledg", "ledy", "ledr"};
-const String  IR_NAME[3]        = {"rhint", "tint", "text"};
-const String  HR_NAME[6]        = {"name", "version", "mac_address", "ip_address", "modbus_uid", "com_speed"};
+const String  DI_NAME[3]        =
+{
+  /* 10001 */       "ledg",
+  /* 10002 */       "ledy",
+  /* 10003 */       "ledr"
+};
+const String  IR_NAME[3]        =
+{
+  /* 30001 */       "rhint",
+  /* 30002 */       "tint",
+  /* 30003 */       "text"
+};
+const String  HR_NAME[6]        =
+{
+  /* 40001-40008 */ "name",
+  /* 40009-40011 */ "version",
+  /* 40012-40017 */ "mac_address",
+  /* 40018-40021 */ "ip_address",
+  /* 40022       */ "modbus_uid",
+  /* 40023-40028 */ "com_speed"
+};
 
 // other constants
 const int     MAXADCVALUE       = 1024;
@@ -67,7 +85,7 @@ String        mymacaddress;
 unsigned long prevtime          = 0;
 
 // messages
-const String MSG[29]            =
+const String  MSG[29]            =
 {
   /*  0 */  "",
   /*  1 */  "MM17D * T/RH measuring device",
@@ -647,11 +665,11 @@ void handleGetJSON()
          "    \"" + HR_NAME[4] + "\": \"" + String(MB_UID) + "\",\n"
          "    \"" + HR_NAME[5] + "\": \"" + String(COM_SPEED) + "\"\n"
          "  },\n"
-         "  \"data\": {\n";
-  "    \"integer\": {\n";
+         "  \"data\": {\n"
+         "    \"integer\": {\n";
   for (int i = 0; i < 3; i++)
   {
-    line += "    \"" + IR_NAME[i] + "\": \"" + String(mbrtu.Ireg(i));
+    line += "      \"" + IR_NAME[i] + "\": \"" + String(mbrtu.Ireg(i));
     if (i < 2 ) line += "\",\n"; else  line += "\"\n";
   }
   line +=
@@ -659,7 +677,7 @@ void handleGetJSON()
     "    \"bit\": {\n";
   for (int i = 0; i < 3; i++)
   {
-    line += "    \"" + DI_NAME[i] + "\": \"" + String(mbrtu.Ists(i));
+    line += "      \"" + DI_NAME[i] + "\": \"" + String(mbrtu.Ists(i));
     if (i < 2 ) line += "\",\n"; else  line += "\"\n";
   }
   line +=
@@ -708,12 +726,12 @@ void handleGetXML()
          "  <data>\n"
          "    <integer>\n";
   for (int i = 0; i < 3; i++)
-    line += "    <" + IR_NAME[i] + ">" + String(mbrtu.Ireg(i)) + "</" + IR_NAME[i] + ">\n";
+    line += "      <" + IR_NAME[i] + ">" + String(mbrtu.Ireg(i)) + "</" + IR_NAME[i] + ">\n";
   line +=
     "    </integer>\n"
     "    <bit>\n";
   for (int i = 0; i < 3; i++)
-    line += "    <" + DI_NAME[i] + ">" + String(mbrtu.Ists(i)) + "</" + DI_NAME[i] + ">\n";
+    line += "      <" + DI_NAME[i] + ">" + String(mbrtu.Ists(i)) + "</" + DI_NAME[i] + ">\n";
   line +=
     "    </bit>\n"
     "  </data>\n"

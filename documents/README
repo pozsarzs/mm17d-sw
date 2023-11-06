@@ -109,15 +109,17 @@ b. Data access with HTTP:
         "modbus_uid": "1",
         "com_speed": "9600"
       },
-      "integer": {
-        "rhint": "67",
-        "tint": "292",
-        "text": "271"
-      },
-      "bit": {
-        "ledg": "1",
-        "ledy": "0",
-        "ledr": "0"
+      "data": {
+        "integer": {
+          "rhint": "67",
+          "tint": "292",
+          "text": "271"
+        },
+        "bit": {
+          "ledg": "1",
+          "ledy": "0",
+          "ledr": "0"
+        }
       }
     }
 
@@ -133,16 +135,18 @@ b. Data access with HTTP:
         <modbus_uid>1</modbus_uid>
         <com_speed>9600</com_speed>
       </hardware>
-      <integer>
-        <rhint>67</rhint>
-        <tint>292</tint>
-        <text>271</text>
-      </integer>
-      <bit>
-        <ledg>1</ledg>
-        <ledy>0</ledy>
-        <ledr>0</ledr>
-      </bit>
+      <data>
+        <integer>
+          <rhint>67</rhint>
+          <tint>292</tint>
+          <text>271</text>
+        </integer>
+        <bit>
+          <ledg>1</ledg>
+          <ledy>0</ledy>
+          <ledr>0</ledr>
+        </bit>
+      </data>
     </xml>
 
 c. Data access with Modbus:
@@ -150,9 +154,9 @@ c. Data access with Modbus:
   10002               status of the yellow LED  (0/1: off/on)  bit
   10003               status of the red LED     (0/1: off/on)  bit
 
-  30001               internal humidity in percent             integer
-  30002               internal temperature in K                integer
-  30003               external temperature in K                integer
+  30001               internal humidity in percent             uint16
+  30002               internal temperature in K                uint16
+  30003               external temperature in K                uint16
 
   40001-40008         device name                8 ASCII coded char
   40009-40011         software version                       3 byte
