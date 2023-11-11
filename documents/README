@@ -6,10 +6,11 @@ Operating program for MM17D device
 It is an internal software for RH/T measuring device. This device can measure
 internal and external temperature and internal humidity.
 
-It has a web interface. The measured data can be queried via WLAN using HTTP in
-four formats (CSV, JSON, TXT and XML) and using Modbus/TCP. Can also be queried
-via RS-232 TTL port using Modbus/RTU protocol. Default serial port parameters for
-serial console and Modbus/RTU connection: 9600 bps, 8N1.
+It has a web interface. The status and the measured data can be queried via
+WLAN using HTTP in four formats (CSV, JSON, TXT and XML) and using Modbus/TCP.
+Can also be queried via RS-232 TTL port using Modbus/RTU protocol. Default
+serial port parameters for serial console and Modbus/RTU connection: 9600 bps,
+8N1.
 
 Requirements:
   Hardware: ESP8266 Huzzah Breakout microcontroller
@@ -69,101 +70,61 @@ b. Data access with HTTP:
 
   Output format:
 
-  CSV:
-    "name","MM17D"
-    "version","0.1.0"
-    "mac_address","80:7D:3A:5D:53:84"
-    "ip_address","192.168.0.103"
-    "modbus_uid","1"
-    "com_speed","9600"
-    "rhint","67"
-    "tint","292"
-    "text","271"
-    "ledg","1"
-    "ledy","0"
-    "ledr","0"
+  CSV:                                         TXT:
+    "name","MM17D"                               MM17D
+    "version","0.1.0"                            0.1.0
+    "mac_address","80:7D:3A:5D:53:84"            80:7D:3A:5D:53:84
+    "ip_address","192.168.0.103"                 192.168.0.103
+    "modbus_uid","1"                             1
+    "com_speed","9600"                           9600
+    "rhint","67"                                 67
+    "tint","292"                                 292
+    "text","271"                                 271
+    "ledg","1"                                   1
+    "ledy","0"                                   0
+    "ledr","0"                                   0
 
-  TXT:
-    MM17D
-    0.1.0
-    80:7D:3A:5D:53:84
-    192.168.0.103
-    1
-    9600
-    67
-    292
-    271
-    1
-    0
-    0
-
-  JSON:
-    "{
-      "software": {
-        "name": "MM17D",
-        "version": "0.1.0"
-      },
-      "hardware": {
-        "mac_address": "80:7D:3A:5D:53:84",
-        "ip_address": "192.168.0.103",
-        "modbus_uid": "1",
-        "com_speed": "9600"
-      },
-      "data": {
-        "integer": {
-          "rhint": "67",
-          "tint": "292",
-          "text": "271"
-        },
-        "bit": {
-          "ledg": "1",
-          "ledy": "0",
-          "ledr": "0"
-        }
-      }
-    }
-
-  XML:
-    <xml>
-      <software>
-        <name>MM17D</name>
-        <version>0.1.0</version>
-      </software>
-      <hardware>
-        <mac_address>80:7D:3A:5D:53:84</mac_address>
-        <ip_address>192.168.0.103</ip_address>
-        <modbus_uid>1</modbus_uid>
-        <com_speed>9600</com_speed>
-      </hardware>
-      <data>
-        <integer>
-          <rhint>67</rhint>
-          <tint>292</tint>
-          <text>271</text>
-        </integer>
-        <bit>
-          <ledg>1</ledg>
-          <ledy>0</ledy>
-          <ledr>0</ledr>
-        </bit>
-      </data>
-    </xml>
+  JSON:                                        XML:
+    "{                                           <xml>
+      "software": {                                <software>
+        "name": "MM17D",                             <name>MM17D</name>
+        "version": "0.1.0"                           <version>0.1.0</version>
+      },                                           </software>
+      "hardware": {                                <hardware>
+        "mac_address": "80:7D:3A:5D:53:84",          <mac_address>80:7D:3A:5D:53:84</mac_address>
+        "ip_address": "192.168.0.103",               <ip_address>192.168.0.103</ip_address>
+        "modbus_uid": "1",                           <modbus_uid>1</modbus_uid>
+        "com_speed": "9600"                          <com_speed>9600</com_speed>
+      },                                           </hardware>
+      "data": {                                    <data>
+        "integer": {                                 <integer>
+          "rhint": "67",                               <rhint>67</rhint>
+          "tint": "292",                               <tint>292</tint>
+          "text": "271"                                <text>271</text>
+        },                                           </integer>
+        "bit": {                                     <bit>
+          "ledg": "1",                                 <ledg>1</ledg>
+          "ledy": "0",                                 <ledy>0</ledy>
+          "ledr": "0"                                  <ledr>0</ledr>
+        }                                            </bit>
+      }                                            </data>
+    }                                            </xml>
 
 c. Data access with Modbus:
-  10001               status of the green LED   (0/1: off/on)  bit
-  10002               status of the yellow LED  (0/1: off/on)  bit
-  10003               status of the red LED     (0/1: off/on)  bit
+  10001               status of the green LED   (0/1: off/on)     bit
+  10002               status of the yellow LED  (0/1: off/on)     bit
+  10003               status of the red LED     (0/1: off/on)     bit
 
   30001               internal humidity in percent             uint16
   30002               internal temperature in K                uint16
   30003               external temperature in K                uint16
 
-  40001-40008         device name                8 ASCII coded char
-  40009-40011         software version                       3 byte
-  40012-40017         MAC address                            6 byte
-  40018-40021         IP address                             4 byte
-  40022               modbus UID                             1 byte
-  40023-40028         serial port speed          6 ASCII coded char
+  40001-40008         device name                  8 ASCII coded char
+  40009-40011         software version                         3 byte
+  40012-40017         MAC address                              6 byte
+  40018-40021         IP address                               4 byte
+  40022               modbus UID                               1 byte
+  40023-40028         serial port speed            6 ASCII coded char
 
 5. Get installer package
 ~~~~~~~~~~~~~~~~~~~~~~~~
