@@ -107,7 +107,7 @@ const String  MSG[29]            =
   /* 17 */  "* Starting webserver",
   /* 18 */  "* Ready, the serial console is off.",
   /* 19 */  "* Modbus query received ",
-  /* 20 */  "* HTTP query received ",
+  /* 20 */  "",
   /* 21 */  "  get help page",
   /* 22 */  "  get summary page",
   /* 23 */  "  get log page",
@@ -365,13 +365,6 @@ uint16_t modbusquery(TRegister* reg, uint16_t val)
   return val;
 }
 
-// blink blue LED and write to log
-void httpquery()
-{
-  blinkblueled();
-  writetosyslog(20);
-}
-
 // --- WEBPAGES ---
 // error 404 page
 void handleNotFound()
@@ -402,7 +395,6 @@ void handleNotFound()
          "  </body>\n"
          "</html>\n";
   httpserver.send(404, TEXTHTML, line);
-  httpquery();
   delay(100);
 }
 
@@ -529,7 +521,6 @@ void handleHelp()
     "  </body>\n"
     "</html>\n";
   httpserver.send(200, TEXTHTML, line);
-  httpquery();
   delay(100);
 };
 
@@ -589,7 +580,6 @@ void handleSummary()
     "  </body>\n"
     "</html>\n";
   httpserver.send(200, TEXTHTML, line);
-  httpquery();
   delay(100);
 }
 
@@ -627,7 +617,6 @@ void handleLog()
     "  </body>\n"
     "</html>\n";
   httpserver.send(200, TEXTHTML, line);
-  httpquery();
   delay(100);
 }
 
@@ -646,7 +635,6 @@ void handleGetCSV()
   for (int i = 0; i < 3; i++)
     line += "\"" + DI_NAME[i] + "\",\"" + String(mbrtu.Ists(i)) + "\"\n";
   httpserver.send(200, TEXTPLAIN, line);
-  httpquery();
   delay(100);
 }
 
@@ -685,7 +673,6 @@ void handleGetJSON()
     "  }\n"
     "}\n";
   httpserver.send(200, TEXTPLAIN, line);
-  httpquery();
   delay(100);
 }
 
@@ -704,7 +691,6 @@ void handleGetTXT()
   for (int i = 0; i < 3; i++)
     line += String(mbrtu.Ists(i)) + "\n";
   httpserver.send(200, TEXTPLAIN, line);
-  httpquery();
   delay(100);
 }
 
@@ -737,7 +723,6 @@ void handleGetXML()
     "  </data>\n"
     "</xml>";
   httpserver.send(200, TEXTPLAIN, line);
-  httpquery();
   delay(100);
 }
 
